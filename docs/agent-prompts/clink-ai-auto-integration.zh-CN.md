@@ -505,7 +505,7 @@ clink webhook endpoint ensure \
   --json
 ```
 
-`--events commerce` 在当前 44 事件 Catalog 中展开为 31 个收费相关事件，包括 checkout、11 个 subscription 生命周期事件、3 个 invoice、5 个 dispute 和 3 个 payment method 事件。`payment_method.deleted` 只有运行时 Catalog 返回时才会加入。`core` 仍固定为原有 6 个事件，但必须提示它不是完整订阅集成预设。
+`--events commerce` 在当前 44 事件 Catalog 中稳定展开为 31 个收费相关事件，包括 checkout、11 个 subscription 生命周期事件、3 个 invoice、5 个 dispute 和 3 个 payment method 事件。较新 Catalog 中的 `payment_method.deleted` 只能通过显式事件名或动态 `all` 选择，不会让稳定 commerce 静默变成 32 个。`core` 仍固定为原有 6 个事件，但必须提示它不是完整订阅集成预设。
 
 如需订阅 commerce 之外的 risk rule、agent order/refund、purchase instruction 或 VIC device 等事件，使用运行时解析的 `--events all`。
 

@@ -10,6 +10,7 @@ export const WEBHOOK_FIXTURE_TYPES = [
   "order.created",
   "order.succeeded",
   "order.failed",
+  "refund.succeeded",
   "subscription.created",
   "subscription.trialing",
   "subscription.activated",
@@ -24,6 +25,7 @@ export const WEBHOOK_FIXTURE_TYPES = [
   "invoice.open",
   "invoice.paid",
   "invoice.void",
+  "dispute.created",
 ] as const;
 
 export type WebhookFixtureType = (typeof WEBHOOK_FIXTURE_TYPES)[number];
@@ -49,6 +51,7 @@ const TRIAL_END = Date.parse("2025-01-22T11:57:00.000Z");
 const PAST_DUE_SINCE = Date.parse("2025-02-16T00:00:00.000Z");
 const CANCELLED_AT = Date.parse("2025-02-16T12:00:00.000Z");
 const INVOICE_CREATED_AT = Date.parse("2025-01-15T11:58:00.000Z");
+const REFUND_CREATED_AT = Date.parse("2025-01-16T09:30:00.000Z");
 
 export function createWebhookFixture(type: string, options: WebhookFixtureOptions = {}): Record<string, unknown> {
   const fixtureType = assertFixtureType(type);
@@ -141,6 +144,7 @@ const fixtureBuilders: Record<WebhookFixtureType, () => Record<string, unknown>>
         },
       ],
     }),
+  "refund.succeeded": () => refundFixture(),
   "subscription.created": () => subscriptionFixture({ status: "incomplete" }),
   "subscription.trialing": () => subscriptionFixture({ status: "free_trial", trialStart: TRIAL_START, trialEnd: TRIAL_END }),
   "subscription.activated": () => subscriptionFixture({ status: "active", activatedAt: SUBSCRIPTION_ACTIVATED_AT }),
@@ -155,6 +159,7 @@ const fixtureBuilders: Record<WebhookFixtureType, () => Record<string, unknown>>
   "invoice.open": () => invoiceFixture({ status: "open", paymentAmount: "0.00" }),
   "invoice.paid": () => invoiceFixture({ status: "paid", paymentAmount: "19.99" }),
   "invoice.void": () => invoiceFixture({ status: "void", paymentAmount: "0.00" }),
+  "dispute.created": () => disputeFixture(),
 };
 
 function assertFixtureType(type: string): WebhookFixtureType {
@@ -353,6 +358,45 @@ function invoiceFixture(values: { status: string; paymentAmount: string }): Reco
     billing: "charge_automatically",
     items: invoiceItems(),
     metadata: baseMetadata(),
+  };
+}
+
+function refundFixture(): Record<string, unknown> {
+  return {
+    object: "refund",
+    createTime: REFUND_CREATED_AT,
+    refundId: "rfd_test_123",
+    refundMerchantOrderId: "merchant_refund_test_123",
+    orderId: "order_test_123",
+    customerId: "cus_test_123",
+    refundAmount: 19.99,
+    refundCurrency: "USD",
+    status: "success",
+    refundReason: "Customer Initiated Refund",
+    paymentInstrumentId: "pi_test_123",
+    metadata: baseMetadata(),
+  };
+}
+
+function disputeFixture(): Record<string, unknown> {
+  return {
+    object: "dispute",
+    chargeBackId: "dispute_test_123",
+    channelCode: "CARD",
+    orderId: "order_test_123",
+    merchantReferenceId: "merchant_order_test_123",
+    merchantId: "merchant_test_123",
+    customerId: "cus_test_123",
+    disputeAmount: 19.99,
+    disputeCurrency: "USD",
+    originalAmount: 19.99,
+    originalCurrency: "USD",
+    reasonCode: "fraudulent",
+    reasonDescription: "Cardholder reported the payment as unrecognized.",
+    status: 1,
+    evidenceDeadline: "2025-01-30T12:00:00.000Z",
+    channelDisputeTime: "2025-01-16T09:00:00.000Z",
+    networkReasonCode: "10.4",
   };
 }
 

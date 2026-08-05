@@ -401,7 +401,7 @@ Endpoint URL 必须是公网 HTTPS，不能使用 localhost、loopback、private
 - `--events checkout`：2 个 session、4 个 order、3 个 refund，共 9 个事件。
 - `--events subscriptions`：11 个 subscription 生命周期事件加 3 个 invoice 事件，共 14 个。
 - `--events disputes`：5 个争议生命周期事件。
-- `--events payment-methods`：当前公开的 3 个 payment method 事件；只有运行时 Catalog 返回 `payment_method.deleted` 时才会加入。
+- `--events payment-methods`：稳定包含当前公开的 3 个 payment method 事件。
 - `--events commerce`：推荐用于完整收费接入，是 checkout、subscriptions、disputes、payment-methods 的并集；在当前 44 事件 Catalog 中为 31 个。
 - `--events all`：使用运行环境 `GET /webhook/events` 实际返回的全部事件。
 - 支持组合 preset，例如 `--events checkout,subscriptions,disputes,payment-methods`，CLI 会自动去重。
@@ -409,18 +409,21 @@ Endpoint URL 必须是公网 HTTPS，不能使用 localhost、loopback、private
 
 CLI 每次解析事件前都会调用运行环境的 `GET /webhook/events`，同时读取 events 和 aliases。preset 所需事件如果不在运行时 Catalog，命令会失败并列出缺失项，不会静默裁剪。
 
-`webhook endpoint ensure` 对事件集合执行 **replace，而不是 merge**：
+`webhook endpoint ensure` 默认执行**安全 merge**；只有显式传入 `--allow-remove-events` 才执行 replace：
 
 1. 先按 URL 查询现有 endpoint。
-2. 展示 `added`、`removed`、`unchanged`。
-3. 只要会删除现有事件，默认退出非 0；必须显式传入 `--allow-remove-events`，交互终端还会再次确认。
-4. PUT 完成后重新读取 endpoint，最终事件集合与 resolved events 不完全一致时退出非 0。
+2. 如果列表摘要没有返回现有事件，继续读取 endpoint 详情；详情仍缺失时 fail closed，不发送 PUT。
+3. 默认目标集合为“现有事件 + resolved events”并去重，因此保留已有额外事件。
+4. 使用 `--allow-remove-events` 时，目标集合改为 resolved events；如会删除事件，PUT 前展示 `added`、`removed`、`unchanged` 和最终集合，交互终端还会再次确认。
+5. PUT 完成后重新读取 endpoint，最终事件集合与计算出的 merge/replace 目标不完全一致时退出非 0。
+
+如果较新的运行时 Catalog 公开 `payment_method.deleted`，可显式指定该事件，`all` 也会动态包含它；稳定的 `payment-methods` 和 `commerce` 不会静默扩容。
 
 公开 API 请求体使用事件名，不使用 Dashboard 数字 event code。
 
 ## Webhook Signing Key 与 .env 同步
 
-`--save-secret` 会把返回的 signing secret 保存到当前 CLI profile，供 `clink webhook simulate/sign/verify` 使用。
+`--save-secret` 会把返回的 signing secret 原子保存到当前 CLI profile，供 `clink webhook simulate/sign/verify` 使用。CLI 会在 PUT 前预检 profile/env 目标；后续竞态失败时回滚已经写入的 env，避免“一边更新、一边旧值”的半写状态。`--restart-command` 必须与 `--sync-env-file` 一起使用，并在 endpoint 回读前完成；其 stdout/stderr 在输出前会移除完整 signing secret。
 
 本地项目建议直接同步到 `.env.local`：
 
@@ -457,7 +460,7 @@ clink webhook endpoint ensure \
 clink webhook fixture invoice.paid --out ./fixtures/invoice-paid.json --json
 ```
 
-默认 profile 是 `merchant-webhook`：事件 ID 使用 `event_` 前缀，外层 `object` 固定为 `event`，`created` 是 Unix 毫秒整数，完整资源位于 `data.object`。旧摊平格式只能通过 `--fixture-profile legacy` 显式生成，并会输出 deprecated warning：
+默认 profile 是 `merchant-webhook`：事件 ID 使用 `event_` 前缀，外层 `object` 固定为 `event`，`created` 是 Unix 毫秒整数，完整资源位于对象形式的 `data.object`，Invoice 行项目字段为 `items`。旧摊平格式只能通过 `--fixture-profile legacy` 为兼容旧测试显式生成，并会输出 deprecated warning：
 
 ```bash
 clink webhook fixture invoice.paid --fixture-profile legacy --out ./fixtures/invoice-paid-legacy.json --json

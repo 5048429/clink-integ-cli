@@ -75,7 +75,12 @@ export const WEBHOOK_PAYMENT_METHOD_EVENTS = [
   "payment_method.update",
 ] as const;
 
-const OPTIONAL_PAYMENT_METHOD_EVENTS = ["payment_method.deleted"] as const;
+export const WEBHOOK_COMMERCE_EVENTS = [
+  ...WEBHOOK_CHECKOUT_EVENTS,
+  ...WEBHOOK_SUBSCRIPTION_EVENTS,
+  ...WEBHOOK_DISPUTE_EVENTS,
+  ...WEBHOOK_PAYMENT_METHOD_EVENTS,
+] as const;
 
 const REQUIRED_PRESET_EVENTS: Record<string, readonly string[]> = {
   core: WEBHOOK_CORE_EVENTS,
@@ -83,17 +88,7 @@ const REQUIRED_PRESET_EVENTS: Record<string, readonly string[]> = {
   subscriptions: WEBHOOK_SUBSCRIPTION_EVENTS,
   disputes: WEBHOOK_DISPUTE_EVENTS,
   "payment-methods": WEBHOOK_PAYMENT_METHOD_EVENTS,
-  commerce: [
-    ...WEBHOOK_CHECKOUT_EVENTS,
-    ...WEBHOOK_SUBSCRIPTION_EVENTS,
-    ...WEBHOOK_DISPUTE_EVENTS,
-    ...WEBHOOK_PAYMENT_METHOD_EVENTS,
-  ],
-};
-
-const OPTIONAL_PRESET_EVENTS: Record<string, readonly string[]> = {
-  "payment-methods": OPTIONAL_PAYMENT_METHOD_EVENTS,
-  commerce: OPTIONAL_PAYMENT_METHOD_EVENTS,
+  commerce: WEBHOOK_COMMERCE_EVENTS,
 };
 
 export const WEBHOOK_PRESET_NAMES = ["core", "checkout", "subscriptions", "disputes", "payment-methods", "commerce", "all"] as const;
@@ -156,8 +151,7 @@ export function resolveWebhookEventSelection(
       presets.push(token);
     } else if (REQUIRED_PRESET_EVENTS[token]) {
       const required = [...REQUIRED_PRESET_EVENTS[token]];
-      const optional = (OPTIONAL_PRESET_EVENTS[token] ?? []).filter((event) => runtimeEvents.has(event));
-      expansion = [...required, ...optional];
+      expansion = required;
       presets.push(token);
       const missing = required.filter((event) => !runtimeEvents.has(event));
       if (missing.length > 0) missingByToken.set(token, missing);

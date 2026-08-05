@@ -22,7 +22,7 @@ Use this skill when the user asks to:
 - Prefer stable command flags and machine-readable JSON over interactive flows.
 - Every command that returns useful data should support `--json`.
 - Resolve webhook endpoint events from the selected environment's `GET /webhook/events` response; do not treat a build-time event enum as authoritative.
-- Treat `webhook endpoint ensure` event updates as replace operations. Show added/removed/unchanged, require explicit removal authorization, and verify the post-write event set.
+- Treat `webhook endpoint ensure` event updates as safe merges by default. Preserve existing events, require `--allow-remove-events` for explicit replacement, show added/removed/unchanged before dangerous writes, and verify the post-write event set.
 - Keep webhook signature verification on the untouched raw body before parsing or normalizing fixture formats.
 - Do not hardcode real Secret Keys or webhook signing keys.
 - Prefer `env:CLINK_SECRET_KEY` and `env:CLINK_WEBHOOK_SIGNING_KEY` references for stored profiles.

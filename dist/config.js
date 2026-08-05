@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { writeTextFileAtomically } from "./atomic-write.js";
 import { BASE_URLS, DEFAULT_PROFILE } from "./constants.js";
 import { getEnvironmentDefinition, resolveDashboardEndpoints } from "./environments.js";
 function emptyConfig() {
@@ -57,8 +58,7 @@ function legacyConfigPath() {
 }
 export async function writeStoredConfig(config) {
     const configPath = getConfigPath();
-    await mkdir(dirname(configPath), { recursive: true });
-    await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+    await writeTextFileAtomically(configPath, `${JSON.stringify(config, null, 2)}\n`);
 }
 export function resolveSecretRef(value, envFallbacks) {
     if (value) {
@@ -116,9 +116,19 @@ export async function resolveRuntimeConfig(options) {
         dashboardEndpoints,
         webhookSigningKey: profileWebhookKey.secret ?? envWebhookKey.secret,
         webhookSigningKeySource: profileWebhookKey.source ?? envWebhookKey.source,
+        apiTimeoutMs: parseApiTimeoutMs(options.timeoutMs ?? process.env.CLINK_API_TIMEOUT_MS),
         dryRun: Boolean(options.dryRun),
         outputMode: options.json ? "json" : "pretty",
     };
+}
+function parseApiTimeoutMs(value) {
+    if (value === undefined)
+        return 30_000;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        throw new Error("Option --timeout-ms must be a positive integer");
+    }
+    return parsed;
 }
 function readEnvironmentFromEnv() {
     const raw = process.env.CLINK_ENV?.trim();

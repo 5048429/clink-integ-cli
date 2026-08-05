@@ -3,10 +3,17 @@ import { dirname } from "node:path";
 import { resolveSecretRef } from "../config.js";
 import { formatFetchError } from "../dashboard-console.js";
 import { parseIntegerOption, printResult, requireOption } from "../output.js";
-import { DEFAULT_WEBHOOK_FIXTURE_PROFILE, WEBHOOK_FIXTURE_PROFILES, createWebhookFixture, isDeprecatedWebhookFixtureProfile, } from "../webhook/fixtures.js";
+import { DEFAULT_WEBHOOK_FIXTURE_PROFILE, WEBHOOK_FIXTURE_PROFILES, WEBHOOK_FIXTURE_TYPES, createWebhookFixture, isDeprecatedWebhookFixtureProfile, } from "../webhook/fixtures.js";
 import { DEFAULT_WEBHOOK_TOLERANCE_SECONDS, signWebhookPayload, verifyWebhookPayload, } from "../webhook/signature.js";
 import { getCommandContext } from "./helpers.js";
 import { registerWebhookEndpointSubcommands } from "./webhook-endpoints.js";
+const WEBHOOK_FIXTURE_HELP = [
+    "",
+    "Default merchant-webhook contract: event_ ID, object=event, Unix-millisecond created, and an object-valued data.object resource.",
+    "Invoice fixtures use data.object.items (never lineItems).",
+    `Supported generated event types (${WEBHOOK_FIXTURE_TYPES.length}): ${WEBHOOK_FIXTURE_TYPES.join(", ")}`,
+    "The legacy profile is deprecated and is only for compatibility with old tests; it is never selected by default.",
+].join("\n");
 export function registerWebhook(program) {
     const webhook = program.command("webhook").description("Simulate, sign, verify, and manage Clink webhooks");
     const endpoint = webhook
@@ -16,9 +23,10 @@ export function registerWebhook(program) {
     webhook
         .command("fixture")
         .description("Write a stable local merchant webhook fixture to disk")
-        .argument("<type>", "Event type, for example invoice.paid")
+        .argument("<type>", "Generated event type; see the supported list below")
         .requiredOption("--out <file>", "Output JSON file")
-        .option("--fixture-profile <profile>", "Fixture profile: merchant-webhook or deprecated legacy", DEFAULT_WEBHOOK_FIXTURE_PROFILE)
+        .option("--fixture-profile <profile>", "Fixture profile: merchant-webhook or deprecated legacy (old tests only)", DEFAULT_WEBHOOK_FIXTURE_PROFILE)
+        .addHelpText("after", WEBHOOK_FIXTURE_HELP)
         .action(async (type, options, command) => {
         const { config } = await getCommandContext(command);
         const profile = parseWebhookFixtureProfile(options.fixtureProfile);
@@ -37,11 +45,12 @@ export function registerWebhook(program) {
     webhook
         .command("simulate")
         .description("Generate a signed local event and optionally POST it to a local endpoint")
-        .argument("<type>", "Event type, for example order.succeeded")
+        .argument("<type>", "Generated event type; see the supported list below")
         .option("--secret <value>", "Webhook signing key literal or env:CLINK_WEBHOOK_SIGNING_KEY")
         .option("--forward-to <url>", "Local endpoint to POST the signed event to")
         .option("--body-file <path>", "Use a custom JSON event body instead of a generated fixture")
-        .option("--fixture-profile <profile>", "Generated fixture profile: merchant-webhook or deprecated legacy", DEFAULT_WEBHOOK_FIXTURE_PROFILE)
+        .option("--fixture-profile <profile>", "Generated fixture profile: merchant-webhook or deprecated legacy (old tests only)", DEFAULT_WEBHOOK_FIXTURE_PROFILE)
+        .addHelpText("after", WEBHOOK_FIXTURE_HELP)
         .action(async (type, options, command) => {
         const { config } = await getCommandContext(command);
         const secret = resolveSecretRef(options.secret, []).secret ?? config.webhookSigningKey;

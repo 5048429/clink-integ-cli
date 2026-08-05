@@ -36,6 +36,7 @@ async function main(): Promise<void> {
     .option("--env <environment>", "Environment name: sandbox, production, or a custom env (see clink env)")
     .option("--base-url <url>", "Override Clink API base URL")
     .option("--api-key <value>", "Secret key literal or env:CLINK_SECRET_KEY")
+    .option("--timeout-ms <milliseconds>", "Abort Clink API requests after this many milliseconds (default: 30000)")
     .option("--dry-run", "Print request metadata instead of executing Clink API writes");
 
   program.exitOverride();

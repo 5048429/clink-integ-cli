@@ -7,6 +7,20 @@ import {
 import { normalizeWebhookEvent } from "../src/webhook/normalize.js";
 import { withSmokeReconciliationFields } from "../src/commands/smoke-test.js";
 
+const REQUIRED_ACCEPTANCE_FIXTURES = [
+  "order.succeeded",
+  "order.failed",
+  "refund.succeeded",
+  "subscription.activated",
+  "subscription.updated.renewed",
+  "subscription.past_due",
+  "subscription.cancelled",
+  "invoice.open",
+  "invoice.paid",
+  "invoice.void",
+  "dispute.created",
+] as const;
+
 function fixtureResource(type: string): Record<string, unknown> {
   const event = createWebhookFixture(type);
   const data = event.data as { object: Record<string, unknown> };
@@ -26,6 +40,28 @@ describe("merchant webhook fixtures", () => {
       expect(event.type).toBe(type);
       expect(event).not.toHaveProperty("livemode");
       expect(event.data).toMatchObject({ object: expect.any(Object) });
+      const data = event.data as { object: Record<string, unknown> };
+      expect(Object.keys(data)).toEqual(["object"]);
+      expect(data.object).not.toBeNull();
+      expect(Array.isArray(data.object)).toBe(false);
+      expect(data.object.object).toBe(type.startsWith("session.") ? "checkout.session" : type.split(".")[0]);
+    }
+  });
+
+  it("generates every fixture required by the acceptance contract without relying on the implementation type list", () => {
+    for (const type of REQUIRED_ACCEPTANCE_FIXTURES) {
+      const event = createWebhookFixture(type);
+      expect(event).toMatchObject({
+        id: expect.stringMatching(/^event_/),
+        object: "event",
+        created: expect.any(Number),
+        type,
+        data: { object: expect.any(Object) },
+      });
+      expect(Number.isInteger(event.created)).toBe(true);
+      const data = event.data as { object: unknown };
+      expect(data.object).not.toBeNull();
+      expect(Array.isArray(data.object)).toBe(false);
     }
   });
 
@@ -105,6 +141,22 @@ describe("merchant webhook fixtures", () => {
         }),
       ]);
     }
+  });
+
+  it("uses production refund and dispute resource fields for the acceptance fixtures", () => {
+    expect(fixtureResource("refund.succeeded")).toMatchObject({
+      object: "refund",
+      refundId: "rfd_test_123",
+      orderId: "order_test_123",
+      status: "success",
+      createTime: expect.any(Number),
+    });
+    expect(fixtureResource("dispute.created")).toMatchObject({
+      object: "dispute",
+      chargeBackId: "dispute_test_123",
+      orderId: "order_test_123",
+      status: 1,
+    });
   });
 
   it("rejects unsupported fixture types instead of generating an ambiguous mixed payload", () => {

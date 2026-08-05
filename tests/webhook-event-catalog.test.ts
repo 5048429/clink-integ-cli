@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  WEBHOOK_COMMERCE_EVENTS,
   WEBHOOK_CORE_EVENTS,
+  WEBHOOK_SUBSCRIPTION_EVENTS,
   parseWebhookRuntimeCatalog,
   resolveWebhookEventSelection,
 } from "../src/webhook/event-catalog.js";
@@ -31,10 +33,11 @@ describe("runtime webhook event presets", () => {
 
   it("expands the required presets to 9, 14, 5, 3, and 31 events", () => {
     expect(resolveWebhookEventSelection("checkout", runtimeCatalog()).resolvedEvents).toHaveLength(9);
-    expect(resolveWebhookEventSelection("subscriptions", runtimeCatalog()).resolvedEvents).toHaveLength(14);
+    expect(resolveWebhookEventSelection("subscriptions", runtimeCatalog()).resolvedEvents).toEqual([...WEBHOOK_SUBSCRIPTION_EVENTS]);
     expect(resolveWebhookEventSelection("disputes", runtimeCatalog()).resolvedEvents).toHaveLength(5);
     expect(resolveWebhookEventSelection("payment-methods", runtimeCatalog()).resolvedEvents).toHaveLength(3);
-    expect(resolveWebhookEventSelection("commerce", runtimeCatalog()).resolvedEvents).toHaveLength(31);
+    expect(resolveWebhookEventSelection("commerce", runtimeCatalog()).resolvedEvents).toEqual([...WEBHOOK_COMMERCE_EVENTS]);
+    expect(WEBHOOK_COMMERCE_EVENTS).toHaveLength(31);
   });
 
   it("combines presets and removes duplicates", () => {
@@ -59,13 +62,21 @@ describe("runtime webhook event presets", () => {
     expect(() => resolveWebhookEventSelection("subscriptions", runtimeCatalog(events))).toThrow(/invoice\.void/);
   });
 
-  it("only adds payment_method.deleted when the runtime catalog exposes it", () => {
+  it("keeps stable presets at 3/31 when payment_method.deleted appears while explicit/all remain runtime-driven", () => {
     expect(resolveWebhookEventSelection("commerce", runtimeCatalog()).resolvedEvents).not.toContain("payment_method.deleted");
 
     const withDeleted = runtimeCatalog([...CURRENT_44_WEBHOOK_EVENTS, "payment_method.deleted"]);
-    expect(resolveWebhookEventSelection("payment-methods", withDeleted).resolvedEvents).toHaveLength(4);
-    expect(resolveWebhookEventSelection("commerce", withDeleted).resolvedEvents).toHaveLength(32);
-    expect(resolveWebhookEventSelection("commerce", withDeleted).resolvedEvents).toContain("payment_method.deleted");
+    expect(resolveWebhookEventSelection("payment-methods", withDeleted).resolvedEvents).toHaveLength(3);
+    expect(resolveWebhookEventSelection("commerce", withDeleted).resolvedEvents).toEqual([...WEBHOOK_COMMERCE_EVENTS]);
+    expect(resolveWebhookEventSelection("payment_method.deleted", withDeleted).resolvedEvents).toEqual(["payment_method.deleted"]);
+    expect(resolveWebhookEventSelection("all", withDeleted).resolvedEvents).toContain("payment_method.deleted");
+  });
+
+  it("automatically includes newly published runtime events in all without changing stable presets", () => {
+    const withFutureEvent = runtimeCatalog([...CURRENT_44_WEBHOOK_EVENTS, "server.new_event"]);
+    expect(resolveWebhookEventSelection("all", withFutureEvent).resolvedEvents).toHaveLength(45);
+    expect(resolveWebhookEventSelection("all", withFutureEvent).resolvedEvents).toContain("server.new_event");
+    expect(resolveWebhookEventSelection("commerce", withFutureEvent).resolvedEvents).toEqual([...WEBHOOK_COMMERCE_EVENTS]);
   });
 
   it("does not let deprecated --allow-unknown-events bypass runtime validation", () => {

@@ -101,7 +101,12 @@ export class ClinkApiClient {
 
     let response: Response;
     try {
-      response = await fetch(url, { method, headers, body });
+      response = await fetch(url, {
+        method,
+        headers,
+        body,
+        signal: AbortSignal.timeout(this.config.apiTimeoutMs),
+      });
     } catch (error) {
       throw new Error(`Clink API ${method} ${url.pathname} network error: ${formatFetchError(error)}`);
     }
