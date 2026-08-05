@@ -1,6 +1,6 @@
 import type { components, paths } from "../openapi/clink.openapi.js";
-import type { InvoiceWebhookObject, MerchantWebhookEvent, SubscriptionWebhookObject } from "../webhook/contracts.js";
-export type { InvoiceItemPriceWebhookObject, InvoiceItemRecurringWebhookObject, InvoiceItemWebhookObject, InvoiceWebhookObject, MerchantWebhookEvent, SubscriptionWebhookObject, } from "../webhook/contracts.js";
+import type { DisputeWebhookObject, InvoiceWebhookObject, MerchantWebhookEvent, PaymentMethodWebhookObject, SubscriptionWebhookObject } from "../webhook/contracts.js";
+export type { DisputeWebhookObject, InvoiceItemPriceWebhookObject, InvoiceItemRecurringWebhookObject, InvoiceItemWebhookObject, InvoiceWebhookObject, MerchantWebhookEvent, PaymentMethodBillingAddressWebhookObject, PaymentMethodCardWebhookObject, PaymentMethodType, PaymentMethodWalletWebhookObject, PaymentMethodWebhookObject, SubscriptionWebhookObject, } from "../webhook/contracts.js";
 type JsonRequestBody<Operation> = Operation extends {
     requestBody?: infer RequestBody;
 } ? NonNullable<RequestBody> extends {
@@ -48,7 +48,8 @@ export type RefundWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventR
 export type SubscriptionWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventSubVo">, SubscriptionWebhookObject>;
 export type InvoiceWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventInvoiceVo">, InvoiceWebhookObject>;
 export type CustomerVerifyWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventCustomerVerifyVo">, NonNullable<components["schemas"]["CustomerVerifyDataVo"]["object"]>>;
-export type DisputeWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventDisputeVo">, components["schemas"]["ChargeBackWebhookVo"]>;
+export type DisputeWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventDisputeVo">, DisputeWebhookObject>;
 export type ChargeBackWebhook = components["schemas"]["ChargeBackWebhookVo"];
-export type ClinkWebhookEvent = OrderWebhookEvent | SessionWebhookEvent | RefundWebhookEvent | SubscriptionWebhookEvent | InvoiceWebhookEvent | CustomerVerifyWebhookEvent | DisputeWebhookEvent;
+export type PaymentMethodWebhookEvent = MerchantWebhookEvent<"payment_method.added" | "payment_method.default_change" | "payment_method.update", PaymentMethodWebhookObject>;
+export type ClinkWebhookEvent = OrderWebhookEvent | SessionWebhookEvent | RefundWebhookEvent | SubscriptionWebhookEvent | InvoiceWebhookEvent | CustomerVerifyWebhookEvent | DisputeWebhookEvent | PaymentMethodWebhookEvent;
 export type ClinkWebhookEventType = ClinkWebhookEvent["type"];

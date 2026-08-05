@@ -282,10 +282,13 @@ describe("merchant webhook fixtures", () => {
         merchantReferenceId: "merchant_order_test_123",
         disputeAmount: 19.99,
         disputeCurrency: "USD",
-        evidenceDeadline: "2025-01-30T12:00:00.000Z",
-        channelDisputeTime: "2025-01-16T09:00:00.000Z",
+        evidenceDeadline: Date.parse("2025-01-30T12:00:00.000Z"),
+        channelDisputeTime: Date.parse("2025-01-16T09:00:00.000Z"),
         status,
       });
+      expect(Number.isInteger(resource.evidenceDeadline)).toBe(true);
+      expect(Number.isInteger(resource.channelDisputeTime)).toBe(true);
+      expect(resource).not.toHaveProperty("channelCode");
       expect(resource).not.toHaveProperty("object");
     }
   });
@@ -294,7 +297,7 @@ describe("merchant webhook fixtures", () => {
     const expectedBase = {
       id: "pi_test_123",
       customerId: "cus_test_123",
-      type: "card",
+      type: "CARD",
       card: {
         last4: "4242",
         name: "Test User",
@@ -310,18 +313,22 @@ describe("merchant webhook fixtures", () => {
       created: expect.any(Number),
     };
 
-    for (const type of ["payment_method.added", "payment_method.default_change"] as const) {
-      const resource = fixtureResource(type);
-      expect(resource).toMatchObject(expectedBase);
-      expect(resource).not.toHaveProperty("visaRegistrationSucceeded");
-      expect(resource).not.toHaveProperty("isDefault");
-    }
+    const added = fixtureResource("payment_method.added");
+    expect(added).toMatchObject(expectedBase);
+    expect(added).not.toHaveProperty("visaRegistrationSucceeded");
+    expect(added).not.toHaveProperty("isDefault");
 
-    expect(fixtureResource("payment_method.update")).toMatchObject({
+    const defaultChange = fixtureResource("payment_method.default_change");
+    expect(defaultChange).toMatchObject(expectedBase);
+    expect(defaultChange).not.toHaveProperty("visaRegistrationSucceeded");
+    expect(defaultChange).not.toHaveProperty("isDefault");
+
+    const update = fixtureResource("payment_method.update");
+    expect(update).toMatchObject({
       ...expectedBase,
       visaRegistrationSucceeded: true,
     });
-    expect(fixtureResource("payment_method.update")).not.toHaveProperty("isDefault");
+    expect(update).not.toHaveProperty("isDefault");
   });
 
   it("rejects unsupported fixture types instead of generating an ambiguous mixed payload", () => {
@@ -340,6 +347,15 @@ describe("legacy webhook fixture compatibility", () => {
     expect(data.object).toBe("invoice");
     expect(data).toHaveProperty("lineItems");
     expect(data).not.toHaveProperty("items");
+  });
+
+  it("preserves legacy ISO dispute times only when the legacy profile is explicit", () => {
+    const event = createWebhookFixture("dispute.created", { profile: "legacy" });
+    const data = event.data as Record<string, unknown>;
+
+    expect(data.evidenceDeadline).toBe("2025-01-30T12:00:00.000Z");
+    expect(data.channelDisputeTime).toBe("2025-01-16T09:00:00.000Z");
+    expect(data).not.toHaveProperty("channelCode");
   });
 
   it("normalizes legacy payloads after verification and reports only safe event identity fields", () => {

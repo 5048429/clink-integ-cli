@@ -102,3 +102,68 @@ export type SubscriptionWebhookObject = {
   elapsedCycles: number | null;
   metadata: Record<string, string> | null;
 };
+
+/**
+ * Canonical dispute resource delivered to merchant webhook endpoints.
+ *
+ * This intentionally does not reuse the generated ChargeBackWebhookVo:
+ * production filters channelCode and serializes Java Date values as Unix
+ * milliseconds rather than OpenAPI's current date-time strings.
+ */
+export type DisputeWebhookObject = {
+  chargeBackId: string | null;
+  orderId: string | null;
+  merchantReferenceId: string | null;
+  merchantId: string | null;
+  customerId: string | null;
+  disputeAmount: number | null;
+  disputeCurrency: string | null;
+  originalAmount: number | null;
+  originalCurrency: string | null;
+  reasonCode: string | null;
+  reasonDescription: string | null;
+  status: 1 | 2 | 3 | 4 | 5 | null;
+  evidenceDeadline: number | null;
+  channelDisputeTime: number | null;
+  networkReasonCode: string | null;
+};
+
+export type PaymentMethodType =
+  | "CARD"
+  | NonNullable<components["schemas"]["PaymentInstrumentApiVo"]["type"]>;
+
+export type PaymentMethodBillingAddressWebhookObject = {
+  city: string | null;
+  country: string | null;
+  line1: string | null;
+  line2: string | null;
+  postalCode: string | null;
+  state: string | null;
+};
+
+export type PaymentMethodCardWebhookObject = {
+  last4: string | null;
+  name: string | null;
+  expiryYear: string | null;
+  expiryMonth: string | null;
+  scheme: string | null;
+  funding: string | null;
+  issuerRegion: string | null;
+  issuerBank: string | null;
+  billingAddress: PaymentMethodBillingAddressWebhookObject | null;
+};
+
+export type PaymentMethodWalletWebhookObject = {
+  accountTag: string | null;
+};
+
+/** Canonical PaymentInstrumentApiVo direction used by merchant webhooks. */
+export type PaymentMethodWebhookObject = {
+  id: string | null;
+  customerId: string | null;
+  type: PaymentMethodType;
+  card: PaymentMethodCardWebhookObject | null;
+  wallet: PaymentMethodWalletWebhookObject | null;
+  created: number | null;
+  visaRegistrationSucceeded?: boolean;
+};

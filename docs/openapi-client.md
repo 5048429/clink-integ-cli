@@ -37,10 +37,11 @@ Merchant Webhook exports keep the existing public names:
 - `InvoiceWebhookEvent`
 - `CustomerVerifyWebhookEvent`
 - `DisputeWebhookEvent`
+- `PaymentMethodWebhookEvent`
 - `ClinkWebhookEvent`
 - `ClinkWebhookEventType`
 
-These aliases do not directly reuse a generated event envelope. Their outer envelope is composed from `MerchantWebhookEvent` in `src/webhook/contracts.ts`, which requires `object: "event"`, numeric `created`, and an object-valued `data.object`. Invoice and subscription aliases use hand-maintained production-serialization resource contracts from the same file so decimal-string amounts and Unix-millisecond lifecycle timestamps do not regress. Other webhook resources may reuse generated resource DTOs when their fields remain suitable.
+These aliases do not directly reuse a generated event envelope. Their outer envelope is composed from `MerchantWebhookEvent` in `src/webhook/contracts.ts`, which requires `object: "event"`, numeric `created`, and an object-valued `data.object`. Invoice, subscription, dispute, and payment-method aliases use hand-maintained production-serialization resource contracts from the same file. This preserves decimal-string amounts, Unix-millisecond lifecycle/dispute timestamps, merchant-visible dispute fields, and the production payment-instrument enum value. `PaymentMethodWebhookEvent` covers `payment_method.added`, `payment_method.default_change`, and `payment_method.update`; it does not include `payment_method.deleted`. Other webhook resources may reuse generated resource DTOs when their fields remain suitable.
 
 This separation is intentional:
 

@@ -1,16 +1,24 @@
 import type { components, paths } from "../openapi/clink.openapi.js";
 import type {
+  DisputeWebhookObject,
   InvoiceWebhookObject,
   MerchantWebhookEvent,
+  PaymentMethodWebhookObject,
   SubscriptionWebhookObject,
 } from "../webhook/contracts.js";
 
 export type {
+  DisputeWebhookObject,
   InvoiceItemPriceWebhookObject,
   InvoiceItemRecurringWebhookObject,
   InvoiceItemWebhookObject,
   InvoiceWebhookObject,
   MerchantWebhookEvent,
+  PaymentMethodBillingAddressWebhookObject,
+  PaymentMethodCardWebhookObject,
+  PaymentMethodType,
+  PaymentMethodWalletWebhookObject,
+  PaymentMethodWebhookObject,
   SubscriptionWebhookObject,
 } from "../webhook/contracts.js";
 
@@ -80,9 +88,13 @@ export type CustomerVerifyWebhookEvent = MerchantWebhookEvent<
 >;
 export type DisputeWebhookEvent = MerchantWebhookEvent<
   GeneratedEventType<"EventDisputeVo">,
-  components["schemas"]["ChargeBackWebhookVo"]
+  DisputeWebhookObject
 >;
 export type ChargeBackWebhook = components["schemas"]["ChargeBackWebhookVo"];
+export type PaymentMethodWebhookEvent = MerchantWebhookEvent<
+  "payment_method.added" | "payment_method.default_change" | "payment_method.update",
+  PaymentMethodWebhookObject
+>;
 
 export type ClinkWebhookEvent =
   | OrderWebhookEvent
@@ -91,6 +103,7 @@ export type ClinkWebhookEvent =
   | SubscriptionWebhookEvent
   | InvoiceWebhookEvent
   | CustomerVerifyWebhookEvent
-  | DisputeWebhookEvent;
+  | DisputeWebhookEvent
+  | PaymentMethodWebhookEvent;
 
 export type ClinkWebhookEventType = ClinkWebhookEvent["type"];

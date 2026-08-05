@@ -16,6 +16,8 @@ const TRIAL_END = Date.parse("2025-01-22T11:57:00.000Z");
 const CANCELLED_AT = Date.parse("2025-02-16T12:00:00.000Z");
 const INVOICE_CREATED_AT = Date.parse("2025-01-15T11:58:00.000Z");
 const REFUND_CREATED_AT = Date.parse("2025-01-16T09:30:00.000Z");
+const DISPUTE_EVIDENCE_DEADLINE = Date.parse("2025-01-30T12:00:00.000Z");
+const DISPUTE_CHANNEL_TIME = Date.parse("2025-01-16T09:00:00.000Z");
 export function createWebhookFixture(type, options = {}) {
     const fixtureType = assertFixtureType(type);
     const profile = options.profile ?? DEFAULT_WEBHOOK_FIXTURE_PROFILE;
@@ -335,7 +337,6 @@ function refundFixture(values) {
 function disputeFixture(status) {
     return {
         chargeBackId: "dispute_test_123",
-        channelCode: "CARD",
         orderId: "order_test_123",
         merchantReferenceId: "merchant_order_test_123",
         merchantId: "merchant_test_123",
@@ -347,8 +348,8 @@ function disputeFixture(status) {
         reasonCode: "fraudulent",
         reasonDescription: "Cardholder reported the payment as unrecognized.",
         status,
-        evidenceDeadline: "2025-01-30T12:00:00.000Z",
-        channelDisputeTime: "2025-01-16T09:00:00.000Z",
+        evidenceDeadline: DISPUTE_EVIDENCE_DEADLINE,
+        channelDisputeTime: DISPUTE_CHANNEL_TIME,
         networkReasonCode: "10.4",
     };
 }
@@ -356,7 +357,7 @@ function paymentMethodFixture(values = {}) {
     return {
         id: "pi_test_123",
         customerId: "cus_test_123",
-        type: "card",
+        type: "CARD",
         card: {
             last4: "4242",
             name: "Test User",
@@ -394,6 +395,8 @@ function toLegacyResource(resource) {
         "currentPeriodEnd",
         "cancelAt",
         "canceledAt",
+        "evidenceDeadline",
+        "channelDisputeTime",
     ]) {
         if (typeof legacy[field] === "number") {
             legacy[field] = new Date(legacy[field]).toISOString();

@@ -75,6 +75,43 @@ describe("webhook fixture CLI profiles", () => {
     }
   }, 60_000);
 
+  it("prints production-shaped dispute and payment-method resources", () => {
+    for (const type of [
+      "dispute.created",
+      "dispute.updated",
+      "dispute.won",
+      "dispute.lost",
+      "dispute.closed",
+    ] as const) {
+      const { result, fixture } = runFixtureWithoutOut(type);
+      expect(result.status, `${type}: ${result.stderr}`).toBe(0);
+      const resource = (fixture?.data as { object: Record<string, unknown> }).object;
+      expect(resource.evidenceDeadline).toEqual(expect.any(Number));
+      expect(resource.channelDisputeTime).toEqual(expect.any(Number));
+      expect(Number.isInteger(resource.evidenceDeadline)).toBe(true);
+      expect(Number.isInteger(resource.channelDisputeTime)).toBe(true);
+      expect(resource).not.toHaveProperty("channelCode");
+    }
+
+    const expectations = {
+      "payment_method.added": undefined,
+      "payment_method.default_change": undefined,
+      "payment_method.update": true,
+    } as const;
+    for (const [type, visaRegistrationSucceeded] of Object.entries(expectations)) {
+      const { result, fixture } = runFixtureWithoutOut(type);
+      expect(result.status, `${type}: ${result.stderr}`).toBe(0);
+      const resource = (fixture?.data as { object: Record<string, unknown> }).object;
+      expect(resource.type).toBe("CARD");
+      expect(resource).not.toHaveProperty("isDefault");
+      if (visaRegistrationSucceeded === undefined) {
+        expect(resource).not.toHaveProperty("visaRegistrationSucceeded");
+      } else {
+        expect(resource.visaRegistrationSucceeded).toBe(true);
+      }
+    }
+  }, 30_000);
+
   it("prints install-smoke fixtures as JSON when --out is omitted", () => {
     for (const type of [
       "invoice.paid",

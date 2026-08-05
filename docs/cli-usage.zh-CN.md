@@ -465,6 +465,8 @@ clink webhook fixture invoice.paid --out ./fixtures/invoice-paid.json --json
 
 默认 profile 是 `merchant-webhook`：事件 ID 使用 `event_` 前缀，外层 `object` 固定为 `event`，`created` 是 Unix 毫秒整数，完整资源位于对象形式的 `data.object`，Invoice 行项目字段为 `items`。旧摊平格式只能通过 `--fixture-profile legacy` 为兼容旧测试显式生成；该格式已弃用，并会输出 deprecated warning：
 
+Dispute fixture 不包含商户 Webhook 生产链路已过滤的 `channelCode`，`evidenceDeadline` 和 `channelDisputeTime` 使用 Unix 毫秒整数。Payment Method fixture 使用生产枚举值 `type: "CARD"`。
+
 ```bash
 clink webhook fixture invoice.paid --fixture-profile legacy --out ./fixtures/invoice-paid-legacy.json --json
 ```
@@ -553,7 +555,7 @@ Webhook handler 必须先保留 raw body 并完成验签，再执行 `JSON.parse
 
 `src/openapi/clink.openapi.ts` 由 `npm run openapi:refresh` 根据当前公开 OpenAPI 生成，不得手工修改。它用于跟踪公开 API，并继续为 REST 请求和响应提供类型。
 
-公开 OpenAPI 中部分资源字段可能滞后于生产序列化，例如可空字段和以字符串序列化的金额。CLI 对外导出的 Merchant Webhook 类型因此统一使用 `src/webhook/contracts.ts` 中手写维护的 canonical 信封；Invoice 和 Subscription 资源也使用其中的生产序列化类型。其他资源可复用生成的 OpenAPI DTO，但生成的事件信封不作为权威 Merchant Webhook 契约。
+公开 OpenAPI 中部分资源字段可能滞后于生产序列化，例如可空字段、字符串金额、Dispute 过滤字段与时间格式，以及 Payment Instrument 枚举大小写。CLI 对外导出的 Merchant Webhook 类型因此统一使用 `src/webhook/contracts.ts` 中手写维护的 canonical 信封；Invoice、Subscription、Dispute 和 Payment Method 资源也使用其中的生产序列化类型。公共 `ClinkWebhookEvent` 联合类型包含稳定的 `payment_method.added`、`payment_method.default_change`、`payment_method.update`，但不包含 `payment_method.deleted`。其他适用资源可复用生成的 OpenAPI DTO，但生成的事件信封不作为权威 Merchant Webhook 契约。
 
 ## Smoke Test 与真实支付验收
 

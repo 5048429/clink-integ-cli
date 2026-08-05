@@ -1,13 +1,22 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { components } from "../src/openapi/clink.openapi.js";
 import type {
+  ClinkWebhookEventType,
+  DisputeWebhookEvent,
+  DisputeWebhookObject,
   InvoiceItemWebhookObject,
   InvoiceWebhookEvent,
   InvoiceWebhookObject,
   MerchantWebhookEvent,
+  PaymentMethodWebhookEvent,
+  PaymentMethodWebhookObject,
   SubscriptionWebhookObject,
   SubscriptionWebhookEvent,
 } from "../src/api/openapi-types.js";
+import {
+  WEBHOOK_COMMERCE_EVENTS,
+  WEBHOOK_PAYMENT_METHOD_EVENTS,
+} from "../src/webhook/event-catalog.js";
 import { LEGACY_WEBHOOK_WARNING_CODE, normalizeWebhookEvent } from "../src/webhook/normalize.js";
 
 type Assert<T extends true> = T;
@@ -17,6 +26,8 @@ type EventRefund = components["schemas"]["EventRefundVo"];
 type EventSubscription = components["schemas"]["EventSubVo"];
 type EventInvoice = components["schemas"]["EventInvoiceVo"];
 type EventDispute = components["schemas"]["EventDisputeVo"];
+type StableCommerceEvent = (typeof WEBHOOK_COMMERCE_EVENTS)[number];
+type StablePaymentMethodEvent = (typeof WEBHOOK_PAYMENT_METHOD_EVENTS)[number];
 
 type _SessionDataHasObject = Assert<"object" extends keyof NonNullable<EventSession["data"]> ? true : false>;
 type _OrderDataHasObject = Assert<"object" extends keyof NonNullable<EventOrder["data"]> ? true : false>;
@@ -24,6 +35,18 @@ type _RefundDataHasObject = Assert<"object" extends keyof NonNullable<EventRefun
 type _SubscriptionDataHasObject = Assert<"object" extends keyof NonNullable<EventSubscription["data"]> ? true : false>;
 type _InvoiceDataHasObject = Assert<"object" extends keyof NonNullable<EventInvoice["data"]> ? true : false>;
 type _DisputeDataHasObject = Assert<"object" extends keyof NonNullable<EventDispute["data"]> ? true : false>;
+type _DisputeOmitsFilteredChannelCode = Assert<
+  "channelCode" extends keyof DisputeWebhookObject ? false : true
+>;
+type _PublicUnionCoversStableCommerce = Assert<
+  StableCommerceEvent extends ClinkWebhookEventType ? true : false
+>;
+type _PaymentMethodEventContainsAllStableEvents = Assert<
+  StablePaymentMethodEvent extends PaymentMethodWebhookEvent["type"] ? true : false
+>;
+type _PaymentMethodEventContainsOnlyStableEvents = Assert<
+  PaymentMethodWebhookEvent["type"] extends StablePaymentMethodEvent ? true : false
+>;
 
 // These assignments intentionally fail when the generated/public contract
 // regresses to ISO strings. `npm run check` compiles this file separately.
@@ -33,10 +56,26 @@ const generatedInvoiceCreatedCannotBeString: EventInvoice["created"] = "2025-01-
 const canonicalCreatedCannotBeString: MerchantWebhookEvent["created"] = "2025-01-15T12:00:00.000Z";
 // @ts-expect-error canonical resources must be nested objects
 const canonicalObjectCannotBeString: MerchantWebhookEvent["data"]["object"] = "invoice";
+// @ts-expect-error canonical dispute times are Unix milliseconds
+const disputeEvidenceDeadlineCannotBeString: DisputeWebhookObject["evidenceDeadline"] =
+  "2025-01-30T12:00:00.000Z";
+// @ts-expect-error payment_method.deleted is runtime-only and not part of the stable public commerce union
+const deletedPaymentMethodCannotBeStable: ClinkWebhookEventType = "payment_method.deleted";
+
+const cardPaymentMethodType: PaymentMethodWebhookObject["type"] = "CARD";
+const addedPaymentMethodEvent: ClinkWebhookEventType = "payment_method.added";
+const defaultPaymentMethodEvent: ClinkWebhookEventType = "payment_method.default_change";
+const updatedPaymentMethodEvent: ClinkWebhookEventType = "payment_method.update";
 
 void generatedInvoiceCreatedCannotBeString;
 void canonicalCreatedCannotBeString;
 void canonicalObjectCannotBeString;
+void disputeEvidenceDeadlineCannotBeString;
+void deletedPaymentMethodCannotBeStable;
+void cardPaymentMethodType;
+void addedPaymentMethodEvent;
+void defaultPaymentMethodEvent;
+void updatedPaymentMethodEvent;
 
 describe("OpenAPI and canonical merchant webhook type contracts", () => {
   it("keeps generated event envelopes nested and millisecond-based", () => {
@@ -84,6 +123,23 @@ describe("OpenAPI and canonical merchant webhook type contracts", () => {
       .toEqualTypeOf<InvoiceItemWebhookObject | null>();
     expectTypeOf<SubscriptionWebhookObject["upcomingInvoiceItem"]>()
       .toEqualTypeOf<InvoiceItemWebhookObject | null>();
+  });
+
+  it("uses the canonical dispute resource without filtered fields or ISO dates", () => {
+    expectTypeOf<DisputeWebhookEvent["data"]["object"]>().toEqualTypeOf<DisputeWebhookObject>();
+    expectTypeOf<DisputeWebhookObject["evidenceDeadline"]>().toEqualTypeOf<number | null>();
+    expectTypeOf<DisputeWebhookObject["channelDisputeTime"]>().toEqualTypeOf<number | null>();
+    expectTypeOf<DisputeWebhookObject["status"]>().toEqualTypeOf<1 | 2 | 3 | 4 | 5 | null>();
+  });
+
+  it("exports the three stable payment method events with the canonical CARD resource", () => {
+    expectTypeOf<PaymentMethodWebhookEvent["type"]>().toEqualTypeOf<StablePaymentMethodEvent>();
+    expectTypeOf<PaymentMethodWebhookEvent["data"]["object"]>()
+      .toEqualTypeOf<PaymentMethodWebhookObject>();
+    expectTypeOf<Extract<PaymentMethodWebhookObject["type"], "CARD">>().toEqualTypeOf<"CARD">();
+    expectTypeOf<PaymentMethodWebhookObject["created"]>().toEqualTypeOf<number | null>();
+    expectTypeOf<PaymentMethodWebhookObject["visaRegistrationSucceeded"]>()
+      .toEqualTypeOf<boolean | undefined>();
   });
 });
 
