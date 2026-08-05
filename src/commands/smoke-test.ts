@@ -94,15 +94,19 @@ export function registerSmokeTest(program: Command): void {
     });
 }
 
-function withSmokeReconciliationFields(
+export function withSmokeReconciliationFields(
   event: Record<string, unknown>,
   values: { merchantReferenceId: string; sessionId?: string },
 ): Record<string, unknown> {
   const data = event.data && typeof event.data === "object" ? event.data as Record<string, unknown> : {};
+  const resource = data.object && typeof data.object === "object" ? data.object as Record<string, unknown> : {};
   event.data = {
     ...data,
-    merchantReferenceId: values.merchantReferenceId,
-    sessionId: values.sessionId ?? data.sessionId,
+    object: {
+      ...resource,
+      merchantReferenceId: values.merchantReferenceId,
+      sessionId: values.sessionId ?? resource.sessionId,
+    },
   };
   return event;
 }

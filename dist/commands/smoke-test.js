@@ -76,12 +76,16 @@ export function registerSmokeTest(program) {
             process.exitCode = 1;
     });
 }
-function withSmokeReconciliationFields(event, values) {
+export function withSmokeReconciliationFields(event, values) {
     const data = event.data && typeof event.data === "object" ? event.data : {};
+    const resource = data.object && typeof data.object === "object" ? data.object : {};
     event.data = {
         ...data,
-        merchantReferenceId: values.merchantReferenceId,
-        sessionId: values.sessionId ?? data.sessionId,
+        object: {
+            ...resource,
+            merchantReferenceId: values.merchantReferenceId,
+            sessionId: values.sessionId ?? resource.sessionId,
+        },
     };
     return event;
 }

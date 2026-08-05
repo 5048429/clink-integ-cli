@@ -4,7 +4,13 @@ import type { Command } from "commander";
 import { resolveSecretRef } from "../config.js";
 import { formatFetchError } from "../dashboard-console.js";
 import { parseIntegerOption, printResult, requireOption } from "../output.js";
-import { createWebhookFixture } from "../webhook/fixtures.js";
+import {
+  DEFAULT_WEBHOOK_FIXTURE_PROFILE,
+  WEBHOOK_FIXTURE_PROFILES,
+  createWebhookFixture,
+  isDeprecatedWebhookFixtureProfile,
+  type WebhookFixtureProfile,
+} from "../webhook/fixtures.js";
 import {
   DEFAULT_WEBHOOK_TOLERANCE_SECONDS,
   signWebhookPayload,
@@ -23,18 +29,23 @@ export function registerWebhook(program: Command): void {
 
   webhook
     .command("fixture")
-    .description("Write a stable local webhook fixture to disk")
+    .description("Write a stable local merchant webhook fixture to disk")
     .argument("<type>", "Event type, for example invoice.paid")
     .requiredOption("--out <file>", "Output JSON file")
-    .action(async (type: string, options: { out: string }, command: Command) => {
+    .option("--fixture-profile <profile>", "Fixture profile: merchant-webhook or deprecated legacy", DEFAULT_WEBHOOK_FIXTURE_PROFILE)
+    .action(async (type: string, options: { out: string; fixtureProfile: string }, command: Command) => {
       const { config } = await getCommandContext(command);
-      const event = createWebhookFixture(type);
+      const profile = parseWebhookFixtureProfile(options.fixtureProfile);
+      warnDeprecatedFixtureProfile(profile);
+      const event = createWebhookFixture(type, { profile });
       await mkdir(dirname(options.out), { recursive: true });
       await writeFile(options.out, `${JSON.stringify(event, null, 2)}\n`, "utf8");
 
       printResult(
         {
           eventType: type,
+          profile,
+          warnings: fixtureProfileWarnings(profile),
           out: options.out,
           fixture: event,
         },
@@ -50,12 +61,21 @@ export function registerWebhook(program: Command): void {
     .option("--secret <value>", "Webhook signing key literal or env:CLINK_WEBHOOK_SIGNING_KEY")
     .option("--forward-to <url>", "Local endpoint to POST the signed event to")
     .option("--body-file <path>", "Use a custom JSON event body instead of a generated fixture")
-    .action(async (type: string, options: { secret?: string; forwardTo?: string; bodyFile?: string }, command: Command) => {
+    .option("--fixture-profile <profile>", "Generated fixture profile: merchant-webhook or deprecated legacy", DEFAULT_WEBHOOK_FIXTURE_PROFILE)
+    .action(async (
+      type: string,
+      options: { secret?: string; forwardTo?: string; bodyFile?: string; fixtureProfile: string },
+      command: Command,
+    ) => {
       const { config } = await getCommandContext(command);
       const secret = resolveSecretRef(options.secret, []).secret ?? config.webhookSigningKey;
       requireOption("--secret or CLINK_WEBHOOK_SIGNING_KEY", secret);
 
-      const event = options.bodyFile ? JSON.parse(await readFile(options.bodyFile, "utf8")) : createWebhookFixture(type);
+      const profile = parseWebhookFixtureProfile(options.fixtureProfile);
+      if (!options.bodyFile) warnDeprecatedFixtureProfile(profile);
+      const event = options.bodyFile
+        ? JSON.parse(await readFile(options.bodyFile, "utf8"))
+        : createWebhookFixture(type, { profile });
       const rawBody = JSON.stringify(event);
       const timestamp = String(Date.now());
       const signature = signWebhookPayload(secret, timestamp, rawBody);
@@ -86,6 +106,8 @@ export function registerWebhook(program: Command): void {
       printResult(
         {
           event,
+          fixtureProfile: options.bodyFile ? "custom-body" : profile,
+          warnings: options.bodyFile ? [] : fixtureProfileWarnings(profile),
           timestamp,
           signature,
           headers: {
@@ -149,6 +171,23 @@ export function registerWebhook(program: Command): void {
       printResult({ valid, toleranceSeconds }, config.outputMode, valid ? "valid" : "invalid");
       if (!valid) process.exitCode = 1;
     });
+}
+
+function parseWebhookFixtureProfile(value: string): WebhookFixtureProfile {
+  if ((WEBHOOK_FIXTURE_PROFILES as readonly string[]).includes(value)) return value as WebhookFixtureProfile;
+  throw new Error(`Option --fixture-profile must be one of: ${WEBHOOK_FIXTURE_PROFILES.join(", ")}`);
+}
+
+function warnDeprecatedFixtureProfile(profile: WebhookFixtureProfile): void {
+  for (const warning of fixtureProfileWarnings(profile)) {
+    console.warn(`Deprecated: ${warning}`);
+  }
+}
+
+function fixtureProfileWarnings(profile: WebhookFixtureProfile): string[] {
+  return isDeprecatedWebhookFixtureProfile(profile)
+    ? ["The legacy webhook fixture profile is deprecated and will be removed in a future release. Migrate to merchant-webhook data.object payloads."]
+    : [];
 }
 
 function parseNonNegativeIntegerOption(name: string, value: string | number | undefined): number {

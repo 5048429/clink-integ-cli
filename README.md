@@ -165,25 +165,39 @@ clink webhook endpoint list --json
 
 clink webhook endpoint ensure \
   --url https://your-public-host.example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --sync-env-file .env.local \
   --json
 
 clink webhook endpoint update whk_xxx \
   --url https://new-public-host.example.com/api/clink/webhook \
-  --events core
+  --events commerce
 
 clink webhook endpoint enable whk_xxx
 clink webhook endpoint disable whk_xxx
 clink webhook endpoint rotate-secret whk_xxx --save-secret --json
 ```
 
-`webhook endpoint ensure` creates or updates the endpoint by URL. It is the recommended idempotent setup command for agents. Created and updated endpoints are enabled by default; pass `--disabled` only when you intentionally want to leave one disabled. Use `webhook endpoint update <endpoint-id>` when a local tunnel URL changes and you want to reuse an existing endpoint record instead of creating another one.
+`webhook endpoint ensure` creates or updates the endpoint by URL. Its event behavior is **replace, not merge**. Before writing, the CLI fetches the runtime `GET /webhook/events` catalog, finds the endpoint by URL, and prints `added`, `removed`, and `unchanged`. If any existing event would be removed, the command exits non-zero unless `--allow-remove-events` is explicit; interactive use also asks for confirmation. After PUT, the CLI reads the endpoint back and exits non-zero unless the final event set exactly matches the resolved selection.
+
+Created and updated endpoints are enabled by default; pass `--disabled` only when you intentionally want to leave one disabled. Use `webhook endpoint update <endpoint-id>` when a local tunnel URL changes and you want to reuse an existing endpoint record instead of creating another one.
 
 `--save-secret` stores the returned signing secret in the current local profile for `clink webhook simulate/sign/verify`. `--sync-env-file <path>` writes or updates `CLINK_WEBHOOK_SIGNING_KEY` in a local env file after the plaintext signing secret is resolved; add `--restart-command "<command>"` when you want the CLI to restart a local server after writing the file. For existing endpoints, Clink cannot return the old plaintext secret; when `--save-secret`, `--show-secret`, or `--sync-env-file` is used, `ensure` requests the plaintext secret and automatically asks the API to rotate it if the old secret is unavailable. `--show-secret` prints the raw value only when you explicitly ask for it.
 
-Webhook endpoint URLs must start with `https://` and cannot use localhost, loopback, private, link-local, or multicast hosts. Public API request bodies use event names, not Dashboard numeric event codes. `--events core` expands to `session.complete`, `order.succeeded`, `order.failed`, `refund.succeeded`, `subscription.created`, and `invoice.paid`; `--events all` expands to the full 44-event Secret Key API catalog returned by `clink webhook endpoint events`.
+Webhook endpoint URLs must start with `https://` and cannot use localhost, loopback, private, link-local, or multicast hosts. Public API request bodies use event names, not Dashboard numeric event codes. Every event selection is validated against the runtime `GET /webhook/events` response; missing preset events fail instead of being silently removed.
+
+Available presets can be combined and are de-duplicated:
+
+- `core`: the compatibility set of exactly 6 events: `session.complete`, `order.succeeded`, `order.failed`, `refund.succeeded`, `subscription.created`, and `invoice.paid`. It is **not** a complete subscription preset and omits the full subscription lifecycle, dunning, cancellation, disputes/chargebacks, `refund.failed`, and `session.expired`.
+- `checkout`: 9 session, order, and refund events.
+- `subscriptions`: 14 events covering 11 subscription lifecycle events plus `invoice.open`, `invoice.paid`, and `invoice.void`.
+- `disputes`: 5 dispute lifecycle events.
+- `payment-methods`: the 3 currently public payment-method events. `payment_method.deleted` is added only when the runtime catalog exposes it.
+- `commerce`: the checkout, subscriptions, disputes, and payment-methods union; 31 events in the current 44-event catalog.
+- `all`: every event returned by the current runtime catalog.
+
+Example composition: `--events checkout,subscriptions,disputes,payment-methods`.
 
 ## MVP Commands
 
@@ -224,7 +238,7 @@ clink payment instrument create --data '{"customerEmail":"test@example.com","pay
 clink api request GET /order --query pageNum=1 --query pageSize=20
 clink api request POST /refund --data '{"orderId":"order_xxx","refundMerchantOrderId":"refund_merchant_xxx","refundAmount":9.99}'
 
-clink webhook endpoint ensure --url https://your-public-host.example.com/api/clink/webhook --events core --save-secret --sync-env-file .env.local --json
+clink webhook endpoint ensure --url https://your-public-host.example.com/api/clink/webhook --events commerce --save-secret --sync-env-file .env.local --json
 clink webhook simulate order.succeeded --secret env:CLINK_WEBHOOK_SIGNING_KEY --forward-to http://localhost:3000/api/clink/webhook
 
 clink doctor
@@ -363,7 +377,7 @@ clink init --framework express --out ./tmp-express --force --json
 clink init --framework fastapi --out ./tmp-fastapi --force --json
 ```
 
-Each starter includes checkout, subscription, and raw-body webhook examples, plus `.env.example`, curl examples, and integration docs. Secrets are read from environment variables such as `CLINK_SECRET_KEY` and `CLINK_WEBHOOK_SIGNING_KEY`.
+Each starter includes checkout, subscription, and raw-body webhook examples, plus `.env.example`, curl examples, and integration docs. Generated handlers verify the untouched raw body before parsing, normalize canonical and legacy envelopes, emit a safe warning metric for legacy payloads, and return non-2xx for unknown payloads or events. Secrets are read from environment variables such as `CLINK_SECRET_KEY` and `CLINK_WEBHOOK_SIGNING_KEY`.
 
 ## Local Webhook Development
 
@@ -374,6 +388,8 @@ Generate a stable fixture:
 ```bash
 clink webhook fixture invoice.paid --out ./fixtures/invoice-paid.json --json
 ```
+
+The default `merchant-webhook` fixture profile uses the production-style envelope: an `event_` ID, `object: "event"`, Unix-millisecond `created`, and the complete resource under `data.object`. The old flattened format is available only through `--fixture-profile legacy`; it prints a deprecation warning.
 
 Sign the exact raw file contents:
 
@@ -402,8 +418,16 @@ order.created
 order.succeeded
 order.failed
 subscription.created
+subscription.trialing
 subscription.activated
+subscription.incomplete_expired
 subscription.past_due
+subscription.cancelled
+subscription.updated.plan_changed
+subscription.updated.plan_change_canceled
+subscription.updated.renewed
+subscription.updated.cancel_at_period_end_set
+subscription.updated.cancel_at_period_end_revoked
 invoice.open
 invoice.paid
 invoice.void
@@ -419,6 +443,7 @@ clink checkout create ... --json
 
 ## Project Docs
 
+- [v0.2.0 release candidate notes](docs/releases/v0.2.0.md)
 - [CLI 使用文档](docs/cli-usage.zh-CN.md)
 - [AI 自动接入官网与 Developers 更新 PRD](docs/ai-integration-website-developers-prd.zh-CN.md)
 - [Requirements](docs/requirements.md)

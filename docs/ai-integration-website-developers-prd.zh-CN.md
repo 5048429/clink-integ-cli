@@ -118,14 +118,14 @@ agent 必须优先使用 CLI 自动创建或更新 webhook endpoint：
 ```bash
 clink webhook endpoint ensure \
   --url <public-webhook-url> \
-  --events core \
+  --events commerce \
   --save-secret \
   --json
 ```
 
 要求：
 
-- 普通 checkout 和 subscription 默认使用最小必要事件集，必要时使用 `--events all` 订阅 44 个事件。
+- 完整收费接入默认使用运行时校验的 `--events commerce`；只有明确只需最小事件集时才使用自定义列表。`core` 仅是 6 事件兼容预设，不能代表完整订阅接入。
 - webhook URL 必须是公网 HTTPS；只有纯本地开发才使用 tunnel。
 - `--save-secret` 后必须把 signing key 同步到项目运行时的 `CLINK_WEBHOOK_SIGNING_KEY`，并重启或重新部署服务。
 - 如果平台允许 agent 写入 Secret，应由 agent 自动写入，不能把“请用户手动复制 webhook signing key”作为默认最终步骤。

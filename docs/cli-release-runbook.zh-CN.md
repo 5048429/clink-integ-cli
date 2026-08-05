@@ -278,7 +278,7 @@ clink <command> --help
 
 - 公开 Clink API 命令应优先使用 `CLINK_SECRET_KEY`，不要要求浏览器登录。
 - webhook endpoint 管理已经支持 Secret Key API，不需要 Dashboard Console token 或 `clink login`。
-- 优先使用 `clink webhook endpoint ensure --url <public-webhook-url> --events core --save-secret --json`。
+- 完整收费接入优先使用 `clink webhook endpoint ensure --url <public-webhook-url> --events commerce --save-secret --json`；`core` 只作为 6 事件兼容预设。
 - `clink dashboard webhook ...` 只作为兼容别名保留，底层也必须走 Secret Key API。
 
 低代码/云 IDE/sandbox 的正确流程是：

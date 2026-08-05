@@ -4,6 +4,8 @@ export interface RequestOptions<TBody = unknown, TQuery extends object = Record<
     query?: TQuery;
     body?: TBody;
     multipart?: FormData;
+    /** Execute a read-only GET even when the command uses --dry-run. */
+    executeInDryRun?: boolean;
 }
 export declare class ClinkApiClient {
     private readonly config;

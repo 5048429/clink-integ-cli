@@ -2,7 +2,7 @@
 
 Date: 2026-06-17
 
-Status: legacy research note. Current `clink-integ-cli` webhook endpoint management uses the Secret Key API through `clink webhook endpoint ensure`. New agent integrations must not follow the manual webhook signing-key copy flow below unless the target platform has no agent-accessible Secret write capability. For cloud-hosted, low-code, cloud IDE, and sandbox integrations, prefer `clink webhook endpoint ensure --events core --save-secret --show-secret --json`, then write the returned signing secret into backend/platform Secret `CLINK_WEBHOOK_SIGNING_KEY` and redeploy.
+Status: legacy research note. Current `clink-integ-cli` webhook endpoint management uses the Secret Key API through `clink webhook endpoint ensure`. New agent integrations must not follow the manual webhook signing-key copy flow below unless the target platform has no agent-accessible Secret write capability. For complete cloud-hosted, low-code, cloud IDE, and sandbox payment integrations, prefer `clink webhook endpoint ensure --events commerce --save-secret --show-secret --json`, then write the returned signing secret into backend/platform Secret `CLINK_WEBHOOK_SIGNING_KEY` and redeploy.
 
 ## Recommendation
 

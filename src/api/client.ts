@@ -9,6 +9,8 @@ export interface RequestOptions<TBody = unknown, TQuery extends object = Record<
   query?: TQuery;
   body?: TBody;
   multipart?: FormData;
+  /** Execute a read-only GET even when the command uses --dry-run. */
+  executeInDryRun?: boolean;
 }
 
 export class ClinkApiClient {
@@ -54,7 +56,10 @@ export class ClinkApiClient {
     path: string,
     options: RequestOptions<TBody, TQuery> = {},
   ): Promise<T> {
-    if (!this.config.apiKey && !this.config.dryRun) {
+    if (options.executeInDryRun && method !== "GET") {
+      throw new Error("executeInDryRun is restricted to read-only GET requests.");
+    }
+    if (!this.config.apiKey && (!this.config.dryRun || options.executeInDryRun)) {
       throw new Error("Missing Clink Secret Key. Set CLINK_SECRET_KEY or run clink auth secret set --api-key env:CLINK_SECRET_KEY");
     }
 
@@ -78,7 +83,7 @@ export class ClinkApiClient {
       body = JSON.stringify(options.body);
     }
 
-    if (this.config.dryRun) {
+    if (this.config.dryRun && !options.executeInDryRun) {
       return {
         dryRun: true,
         request: {

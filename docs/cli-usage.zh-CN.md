@@ -376,13 +376,13 @@ clink webhook endpoint list --json
 
 clink webhook endpoint ensure \
   --url https://your-public-host.example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --json
 
 clink webhook endpoint update whk_xxx \
   --url https://new-public-host.example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --json
 
 clink webhook endpoint enable whk_xxx --json
@@ -397,9 +397,24 @@ Endpoint URL 必须是公网 HTTPS，不能使用 localhost、loopback、private
 
 事件参数说明：
 
-- `--events core`：默认推荐，展开为 `session.complete`、`order.succeeded`、`order.failed`、`refund.succeeded`、`subscription.created`、`invoice.paid`。
-- `--events all`：展开为当前 Secret Key API 支持的完整 44 个事件名。
+- `--events core`：兼容预设，固定展开为 `session.complete`、`order.succeeded`、`order.failed`、`refund.succeeded`、`subscription.created`、`invoice.paid` 这 6 个事件。它不是完整订阅预设，不覆盖完整订阅生命周期、催缴、取消、争议/拒付、`refund.failed` 和 `session.expired`。
+- `--events checkout`：2 个 session、4 个 order、3 个 refund，共 9 个事件。
+- `--events subscriptions`：11 个 subscription 生命周期事件加 3 个 invoice 事件，共 14 个。
+- `--events disputes`：5 个争议生命周期事件。
+- `--events payment-methods`：当前公开的 3 个 payment method 事件；只有运行时 Catalog 返回 `payment_method.deleted` 时才会加入。
+- `--events commerce`：推荐用于完整收费接入，是 checkout、subscriptions、disputes、payment-methods 的并集；在当前 44 事件 Catalog 中为 31 个。
+- `--events all`：使用运行环境 `GET /webhook/events` 实际返回的全部事件。
+- 支持组合 preset，例如 `--events checkout,subscriptions,disputes,payment-methods`，CLI 会自动去重。
 - 自定义事件列表：使用逗号分隔的事件名，例如 `order.succeeded,invoice.paid`。
+
+CLI 每次解析事件前都会调用运行环境的 `GET /webhook/events`，同时读取 events 和 aliases。preset 所需事件如果不在运行时 Catalog，命令会失败并列出缺失项，不会静默裁剪。
+
+`webhook endpoint ensure` 对事件集合执行 **replace，而不是 merge**：
+
+1. 先按 URL 查询现有 endpoint。
+2. 展示 `added`、`removed`、`unchanged`。
+3. 只要会删除现有事件，默认退出非 0；必须显式传入 `--allow-remove-events`，交互终端还会再次确认。
+4. PUT 完成后重新读取 endpoint，最终事件集合与 resolved events 不完全一致时退出非 0。
 
 公开 API 请求体使用事件名，不使用 Dashboard 数字 event code。
 
@@ -412,7 +427,7 @@ Endpoint URL 必须是公网 HTTPS，不能使用 localhost、loopback、private
 ```bash
 clink webhook endpoint ensure \
   --url https://your-public-host.example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --sync-env-file .env.local \
   --json
@@ -423,7 +438,7 @@ clink webhook endpoint ensure \
 ```bash
 clink webhook endpoint ensure \
   --url https://your-public-host.example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --sync-env-file .env.local \
   --restart-command "npm run restart" \
@@ -440,6 +455,12 @@ clink webhook endpoint ensure \
 
 ```bash
 clink webhook fixture invoice.paid --out ./fixtures/invoice-paid.json --json
+```
+
+默认 profile 是 `merchant-webhook`：事件 ID 使用 `event_` 前缀，外层 `object` 固定为 `event`，`created` 是 Unix 毫秒整数，完整资源位于 `data.object`。旧摊平格式只能通过 `--fixture-profile legacy` 显式生成，并会输出 deprecated warning：
+
+```bash
+clink webhook fixture invoice.paid --fixture-profile legacy --out ./fixtures/invoice-paid-legacy.json --json
 ```
 
 签名：
@@ -478,7 +499,9 @@ Webhook 签名算法是：
 HMAC_SHA256(CLINK_WEBHOOK_SIGNING_KEY, X-Clink-Timestamp + "." + rawBody)
 ```
 
-Webhook handler 必须保留 raw body、验证签名、幂等处理、容忍重试和乱序事件。订单匹配建议使用 `merchantReferenceId` + `sessionId` 双重匹配。
+Webhook handler 必须先保留 raw body 并完成验签，再执行 `JSON.parse` 和 normalize；不得先改写或重新序列化 body。canonical 载荷直接处理对象形式的 `data.object`。legacy 载荷只在 `data.object` 为字符串时迁移字段、把 ISO `created` 转成毫秒并把 `lineItems` 改为 `items`，同时记录只包含 `event.id` 和 `event.type` 的结构化 warning/metric。无法识别的载荷和未知事件必须返回非 2xx，进入项目的 Inbox/重试策略，不得静默返回 200。
+
+此外仍需幂等处理并容忍重试和乱序事件。订单匹配建议使用 `merchantReferenceId` + `sessionId` 双重匹配。
 
 ## Smoke Test 与真实支付验收
 
@@ -525,7 +548,7 @@ Webhook signing key 应由 `clink webhook endpoint ensure --save-secret` 创建�
 
 ### 什么时候用 `--events all`？
 
-普通支付和订阅接入默认用 `--events core` 或最小必要事件列表。只有确实需要 dispute、payment method、risk rule、agent order/refund 等扩展事件时，才使用 `--events all`。
+完整收费接入默认用 `--events commerce`；它覆盖 checkout、11 个 subscription 生命周期事件、3 个 invoice、dispute 和公开 payment method 事件。`all` 适合确实还需要 risk rule、agent order/refund、purchase instruction 或 VIC device 等 commerce 以外事件的场景。
 
 ### CLI 会自动扫描网站商品吗？
 

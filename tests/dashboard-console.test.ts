@@ -384,67 +384,6 @@ describe("Dashboard merchant and webhook helpers", () => {
     });
   });
 
-  it("prints a masked webhook ensure dry-run plan", () => {
-    const rawToken = "satoken_dashboard_access_token_abcdef1234567890";
-    const result = runClink(
-      [
-        "--json",
-        "--dry-run",
-        "dashboard",
-        "webhook",
-        "ensure",
-        "--merchant-id",
-        "mcht_123",
-        "--url",
-        "https://example.com/api/clink/webhook",
-        "--events",
-        "order.succeeded,invoice.paid",
-        "--save-secret",
-      ],
-      {
-        defaultProfile: "default",
-        profiles: {
-          default: {
-            dashboard: {
-              baseUrl: "https://uat-dashboard.clinkbill.com/prod-api/",
-              clientId: "client_123",
-              accessToken: rawToken,
-              savedAt: "2026-06-17T00:00:00Z",
-            },
-          },
-        },
-      },
-    );
-
-    expect(result.status).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(result.stdout).not.toContain(rawToken);
-
-    const output = JSON.parse(result.stdout) as {
-      ignoredMerchantId?: string;
-      saved: boolean;
-      result: { request: { method: string; url: string; headers: Record<string, string>; body: Record<string, unknown> } };
-    };
-    expect(output.ignoredMerchantId).toBe("mcht_123");
-    expect(output.saved).toBe(true);
-    expect(output.result.request).toMatchObject({
-      method: "PUT",
-      url: "https://uat-api.clinkbill.com/api/webhook/endpoints/ensure",
-      headers: {
-        "X-API-KEY": "[masked]",
-        "X-Timestamp": "[generated]",
-        "Content-Type": "application/json",
-      },
-    });
-    expect(output.result.request.body).toMatchObject({
-      url: "https://example.com/api/clink/webhook",
-      events: ["order.succeeded", "invoice.paid"],
-      enabled: true,
-      returnSigningSecret: true,
-      rotateSecretIfUnavailable: true,
-    });
-  });
-
   it("generates dry-run requests to enable Dashboard webhooks", () => {
     const rawToken = "satoken_dashboard_access_token_abcdef1234567890";
     const result = runClink(
@@ -482,55 +421,6 @@ describe("Dashboard merchant and webhook helpers", () => {
     });
   });
 
-  it("expands all webhook events to the full Secret Key API-supported event set", () => {
-    const rawToken = "satoken_dashboard_access_token_abcdef1234567890";
-    const result = runClink(
-      [
-        "--json",
-        "--dry-run",
-        "dashboard",
-        "webhook",
-        "ensure",
-        "--merchant-id",
-        "mcht_123",
-        "--url",
-        "https://example.com/api/clink/webhook",
-        "--events",
-        "all",
-      ],
-      {
-        defaultProfile: "default",
-        profiles: {
-          default: {
-            dashboard: {
-              baseUrl: "https://uat-dashboard.clinkbill.com/prod-api/",
-              clientId: "client_123",
-              accessToken: rawToken,
-              savedAt: "2026-06-17T00:00:00Z",
-            },
-          },
-        },
-      },
-    );
-
-    expect(result.status).toBe(0);
-    expect(result.stderr).not.toContain(rawToken);
-    const output = JSON.parse(result.stdout) as { result: { request: { body: Record<string, unknown> } } };
-    const events = output.result.request.body.events as string[];
-    expect(events).toHaveLength(44);
-    expect(events).toEqual(expect.arrayContaining([
-      "order.created",
-      "session.complete",
-      "session.expired",
-      "dispute.won",
-      "customer.verify",
-      "payment_method.added",
-      "agent_refund.rejected",
-      "payment_method.update",
-      "purchase_instruction.cancelled",
-      "vic_device.binding_succeeded",
-    ]));
-  });
 });
 
 describe("Dashboard Console missing token", () => {

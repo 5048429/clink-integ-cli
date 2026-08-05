@@ -22,7 +22,10 @@ export class ClinkApiClient {
         return this.request("PUT", path, options);
     }
     async request(method, path, options = {}) {
-        if (!this.config.apiKey && !this.config.dryRun) {
+        if (options.executeInDryRun && method !== "GET") {
+            throw new Error("executeInDryRun is restricted to read-only GET requests.");
+        }
+        if (!this.config.apiKey && (!this.config.dryRun || options.executeInDryRun)) {
             throw new Error("Missing Clink Secret Key. Set CLINK_SECRET_KEY or run clink auth secret set --api-key env:CLINK_SECRET_KEY");
         }
         const url = new URL(path.replace(/^\//, ""), this.config.baseUrl);
@@ -43,7 +46,7 @@ export class ClinkApiClient {
             headers.set("Content-Type", "application/json");
             body = JSON.stringify(options.body);
         }
-        if (this.config.dryRun) {
+        if (this.config.dryRun && !options.executeInDryRun) {
             return {
                 dryRun: true,
                 request: {
