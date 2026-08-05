@@ -21,8 +21,8 @@ export function registerProduct(program: Command): void {
   product
     .command("get <product-id>")
     .description("Get product details")
-    .action(async (productId: string, command: Command) => {
-      const { config, client } = await getCommandContext(command);
+    .action(async function (this: Command, productId: string) {
+      const { config, client } = await getCommandContext(this);
       const result = await client.get(`/product/${encodeURIComponent(productId)}`);
       printResult(result, config.outputMode);
     });

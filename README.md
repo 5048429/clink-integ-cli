@@ -338,6 +338,7 @@ If scanned products do not have uploaded Clink image OSS IDs yet, prefer `imageU
 ## Checkout Sessions
 
 Checkout is the payment entry point. The CLI supports both price sources from the official quickstart.
+Under the current API contract, both registered-product and inline checkout require `--amount` and `--currency`; registered IDs do not make those options optional.
 
 Use an existing Dashboard product and price:
 

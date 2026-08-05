@@ -7,8 +7,8 @@ export function registerProduct(program) {
     product
         .command("get <product-id>")
         .description("Get product details")
-        .action(async (productId, command) => {
-        const { config, client } = await getCommandContext(command);
+        .action(async function (productId) {
+        const { config, client } = await getCommandContext(this);
         const result = await client.get(`/product/${encodeURIComponent(productId)}`);
         printResult(result, config.outputMode);
     });

@@ -40,6 +40,30 @@ function runClink(args: string[]): CliResult {
 }
 
 describe("Secret Key API commands", () => {
+  it.each([
+    ["order", "order_test", "/order/order_test"],
+    ["product", "prd_test", "/product/prd_test"],
+    ["price", "price_test", "/price/price_test"],
+    ["refund", "rfd_test", "/refund/rfd_test"],
+    ["subscription", "sub_test", "/subscription/sub_test"],
+  ])("dry-runs %s get with its positional resource ID", (resource, id, path) => {
+    const result = runClink(["--json", "--dry-run", resource, "get", id]);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const output = JSON.parse(result.stdout) as {
+      request: { method: string; url: string; headers: Record<string, string> };
+    };
+    expect(output.request).toMatchObject({
+      method: "GET",
+      url: `https://uat-api.clinkbill.com/api${path}`,
+      headers: {
+        "X-API-KEY": "[masked]",
+        "X-Timestamp": "[generated]",
+      },
+    });
+  });
+
   it("dry-runs arbitrary official API requests with X-API-KEY authentication", () => {
     const result = runClink([
       "--json",

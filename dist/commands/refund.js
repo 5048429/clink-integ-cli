@@ -31,8 +31,8 @@ export function registerRefund(program) {
     refund
         .command("get <refund-id>")
         .description("Get refund details")
-        .action(async (refundId, command) => {
-        const { config, client } = await getCommandContext(command);
+        .action(async function (refundId) {
+        const { config, client } = await getCommandContext(this);
         const result = await client.get(`/refund/${encodeURIComponent(refundId)}`);
         printResult(result, config.outputMode);
     });

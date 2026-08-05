@@ -10,8 +10,8 @@ export function registerSubscription(program: Command): void {
   subscription
     .command("get <subscription-id>")
     .description("Get subscription details")
-    .action(async (subscriptionId: string, command: Command) => {
-      const { config, client } = await getCommandContext(command);
+    .action(async function (this: Command, subscriptionId: string) {
+      const { config, client } = await getCommandContext(this);
       const result = await client.get(`/subscription/${encodeURIComponent(subscriptionId)}`);
       printResult(result, config.outputMode);
     });

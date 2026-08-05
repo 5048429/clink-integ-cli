@@ -26,17 +26,14 @@ export const WEBHOOK_FIXTURE_TYPES = [
 const FIXTURE_EVENT_CREATED = Date.parse("2025-01-15T12:00:00.000Z");
 const CHECKOUT_CREATED_AT = "2025-01-15T11:45:00.000Z";
 const CHECKOUT_EXPIRES_AT = "2025-01-15T12:45:00.000Z";
-const ORDER_CREATED_TIME = Date.parse("2025-01-15T11:50:00.000Z");
 const ORDER_PAYMENT_TIME = Date.parse("2025-01-15T11:55:00.000Z");
 const SUBSCRIPTION_CREATED_AT = Date.parse("2025-01-15T11:56:00.000Z");
-const SUBSCRIPTION_ACTIVATED_AT = Date.parse("2025-01-15T11:57:00.000Z");
 const CURRENT_PERIOD_START = Date.parse("2025-01-15T00:00:00.000Z");
 const CURRENT_PERIOD_END = Date.parse("2025-02-15T00:00:00.000Z");
 const NEXT_PERIOD_START = CURRENT_PERIOD_END;
 const NEXT_PERIOD_END = Date.parse("2025-03-15T00:00:00.000Z");
 const TRIAL_START = Date.parse("2025-01-15T11:57:00.000Z");
 const TRIAL_END = Date.parse("2025-01-22T11:57:00.000Z");
-const PAST_DUE_SINCE = Date.parse("2025-02-16T00:00:00.000Z");
 const CANCELLED_AT = Date.parse("2025-02-16T12:00:00.000Z");
 const INVOICE_CREATED_AT = Date.parse("2025-01-15T11:58:00.000Z");
 const REFUND_CREATED_AT = Date.parse("2025-01-16T09:30:00.000Z");
@@ -89,24 +86,24 @@ const fixtureBuilders = {
     "session.complete": () => sessionFixture({
         status: "completed",
         paymentStatus: "paid",
-        orderId: "order_test_123",
         expiresAt: CHECKOUT_EXPIRES_AT,
     }),
     "session.expired": () => sessionFixture({
         status: "expired",
         paymentStatus: "unpaid",
-        orderId: null,
         expiresAt: CHECKOUT_EXPIRES_AT,
     }),
     "order.created": () => orderFixture({
-        status: "pending",
+        status: "created",
         paymentTime: null,
-        paymentExecutionDetails: [],
+        paymentExecutionDetails: null,
+        riskLevel: null,
     }),
     "order.succeeded": () => orderFixture({
         status: "success",
         paymentTime: ORDER_PAYMENT_TIME,
-        paymentExecutionDetails: [],
+        paymentExecutionDetails: null,
+        riskLevel: "low",
     }),
     "order.failed": () => orderFixture({
         status: "failed",
@@ -118,22 +115,38 @@ const fixtureBuilders = {
                 originalFailureMessage: "The payment method was declined in the local fixture.",
             },
         ],
+        riskLevel: "high",
     }),
     "refund.succeeded": () => refundFixture(),
-    "subscription.created": () => subscriptionFixture({ status: "incomplete" }),
+    "subscription.created": () => subscriptionFixture({
+        status: "incomplete",
+        recurringInvoiceItem: null,
+        upcomingInvoiceItem: recurringInvoiceItem(),
+    }),
     "subscription.trialing": () => subscriptionFixture({ status: "free_trial", trialStart: TRIAL_START, trialEnd: TRIAL_END }),
-    "subscription.activated": () => subscriptionFixture({ status: "active", activatedAt: SUBSCRIPTION_ACTIVATED_AT }),
-    "subscription.incomplete_expired": () => subscriptionFixture({ status: "incomplete_expired" }),
-    "subscription.past_due": () => subscriptionFixture({ status: "past_due", activatedAt: SUBSCRIPTION_ACTIVATED_AT, pastDueSince: PAST_DUE_SINCE }),
-    "subscription.cancelled": () => subscriptionFixture({ status: "cancelled", activatedAt: SUBSCRIPTION_ACTIVATED_AT, canceledAt: CANCELLED_AT, cancelReason: "requested_by_customer" }),
-    "subscription.updated.plan_changed": () => subscriptionFixture({ status: "active", activatedAt: SUBSCRIPTION_ACTIVATED_AT, priceId: "price_test_456", priceSnapshotId: "price_snapshot_test_456" }),
-    "subscription.updated.plan_change_canceled": () => subscriptionFixture({ status: "active", activatedAt: SUBSCRIPTION_ACTIVATED_AT }),
-    "subscription.updated.renewed": () => subscriptionFixture({ status: "active", activatedAt: SUBSCRIPTION_ACTIVATED_AT, currentPeriodStart: NEXT_PERIOD_START, currentPeriodEnd: NEXT_PERIOD_END }),
-    "subscription.updated.cancel_at_period_end_set": () => subscriptionFixture({ status: "active", activatedAt: SUBSCRIPTION_ACTIVATED_AT, cancelAtPeriodEnd: true, cancelAt: CURRENT_PERIOD_END }),
-    "subscription.updated.cancel_at_period_end_revoked": () => subscriptionFixture({ status: "active", activatedAt: SUBSCRIPTION_ACTIVATED_AT, cancelAtPeriodEnd: false, cancelAt: null }),
-    "invoice.open": () => invoiceFixture({ status: "open", paymentAmount: "0.00" }),
-    "invoice.paid": () => invoiceFixture({ status: "paid", paymentAmount: "19.99" }),
-    "invoice.void": () => invoiceFixture({ status: "void", paymentAmount: "0.00" }),
+    "subscription.activated": () => subscriptionFixture({ status: "active" }),
+    "subscription.incomplete_expired": () => subscriptionFixture({
+        status: "incomplete_expired",
+        recurringInvoiceItem: null,
+        upcomingInvoiceItem: recurringInvoiceItem(),
+    }),
+    "subscription.past_due": () => subscriptionFixture({ status: "past_due", elapsedCycles: 1 }),
+    "subscription.cancelled": () => subscriptionFixture({
+        status: "cancelled",
+        cancelAt: CANCELLED_AT,
+        cancelAtPeriodEnd: false,
+        canceledAt: CANCELLED_AT,
+        cancelReason: "requested_by_customer",
+        elapsedCycles: 1,
+    }),
+    "subscription.updated.plan_changed": () => subscriptionFixture({ status: "active", priceId: "price_test_456", priceSnapshotId: "price_snapshot_test_456" }),
+    "subscription.updated.plan_change_canceled": () => subscriptionFixture({ status: "active" }),
+    "subscription.updated.renewed": () => subscriptionFixture({ status: "active", currentPeriodStart: NEXT_PERIOD_START, currentPeriodEnd: NEXT_PERIOD_END, elapsedCycles: 1 }),
+    "subscription.updated.cancel_at_period_end_set": () => subscriptionFixture({ status: "active", cancelAtPeriodEnd: true, cancelAt: CURRENT_PERIOD_END }),
+    "subscription.updated.cancel_at_period_end_revoked": () => subscriptionFixture({ status: "active", cancelAtPeriodEnd: false, cancelAt: null }),
+    "invoice.open": () => invoiceFixture({ status: "open", paymentAmount: "19.99", orderId: null }),
+    "invoice.paid": () => invoiceFixture({ status: "paid", paymentAmount: "19.99", orderId: "order_test_123" }),
+    "invoice.void": () => invoiceFixture({ status: "void", paymentAmount: "0.00", orderId: null }),
     "dispute.created": () => disputeFixture(),
 };
 function assertFixtureType(type) {
@@ -144,46 +157,38 @@ function assertFixtureType(type) {
 function fixtureEventId(type, prefix) {
     return `${prefix}_${type.replace(/[^a-z0-9]+/gi, "_")}_test`;
 }
-function baseCustomer() {
-    return {
-        customerId: "cus_test_123",
-        email: "test@example.com",
-        name: "Test Customer",
-    };
-}
-function recurringInvoiceItem() {
+function recurringInvoiceItem(options = {}) {
     return {
         invoiceItemId: "invoice_item_test_123",
         amount: "19.99",
-        discountAmount: "0.00",
+        discountAmount: null,
         paymentAmount: "19.99",
+        couponTerms: null,
+        promotionCode: null,
+        description: "Local webhook test plan",
         currency: "USD",
         periodStart: CURRENT_PERIOD_START,
         periodEnd: CURRENT_PERIOD_END,
-        proration: false,
+        proration: null,
         price: {
             productId: "prd_test_123",
             productName: "Local webhook test plan",
-            priceId: "price_test_123",
-            priceSnapshotId: "price_snapshot_test_123",
+            priceId: options.priceId ?? "price_test_123",
+            priceSnapshotId: options.priceSnapshotId ?? "price_snapshot_test_123",
             unitAmount: "19.99",
             quantity: 1,
+            recurring: {
+                interval: "month",
+                intervalCount: 1,
+                pricingModel: "flat_rate",
+                tiersMode: null,
+                trialPeriodDays: null,
+            },
         },
     };
 }
 function invoiceItems() {
     return [recurringInvoiceItem()];
-}
-function basePriceDataList() {
-    return [
-        {
-            name: "Local webhook test plan",
-            quantity: 1,
-            unitAmount: 19.99,
-            currency: "USD",
-            imageUrl: "https://merchant.example/assets/local-webhook-test.png",
-        },
-    ];
 }
 function baseMetadata() {
     return {
@@ -193,52 +198,58 @@ function baseMetadata() {
 }
 function sessionFixture(values) {
     return {
-        object: "checkout.session",
         sessionId: "sess_test_123",
         token: "tok_test_123",
         status: values.status,
         paymentStatus: values.paymentStatus,
         originalCurrency: "USD",
-        paymentCurrency: "USD",
+        paymentCurrency: null,
         amountSubtotal: 19.99,
-        amountTotal: 19.99,
+        amountTotal: null,
         subscriptionId: null,
         invoiceId: null,
-        orderId: values.orderId,
+        orderId: null,
         merchantReferenceId: "merchant_order_test_123",
-        customer: baseCustomer(),
-        locale: "en-US",
+        customer: null,
+        locale: null,
         uiMode: "hostedPage",
         returnUrl: null,
         successUrl: "https://merchant.example/success",
         cancelUrl: "https://merchant.example/cancel",
         created: CHECKOUT_CREATED_AT,
         expire: values.expiresAt,
-        product: {
-            productId: "prd_test_123",
-            productName: "Local webhook test plan",
+        product: null,
+        price: {
+            priceId: null,
+            priceList: null,
+            recurring: null,
         },
-        priceDataList: basePriceDataList(),
-        metadata: baseMetadata(),
+        priceDataList: null,
+        showPromotionCode: false,
+        metadata: {},
     };
 }
 function orderFixture(values) {
     return {
-        object: "order",
         orderId: "order_test_123",
-        type: "onetime",
+        type: "recurring",
         status: values.status,
         merchantReferenceId: "merchant_order_test_123",
         sessionId: "sess_test_123",
+        invoiceId: "inv_test_123",
         customerId: "cus_test_123",
         customerEmail: "test@example.com",
-        createTime: ORDER_CREATED_TIME,
         productId: "prd_test_123",
         priceId: "price_test_123",
-        priceDataList: basePriceDataList(),
+        priceDataList: null,
         paymentMethod: {
             paymentMethodType: "CARD",
             paymentInstrumentId: "pi_test_123",
+            cardLastFour: "4242",
+            cardScheme: "VISA",
+            issuerBank: "Test Bank",
+            issuerRegion: "US",
+            wallet: null,
         },
         paymentExecutionDetails: values.paymentExecutionDetails,
         amountSubtotal: 19.99,
@@ -246,48 +257,51 @@ function orderFixture(values) {
         paymentCurrency: "USD",
         originalCurrency: "USD",
         paymentTime: values.paymentTime,
-        metadata: baseMetadata(),
-        riskLevel: "low",
+        metadata: {},
+        riskLevel: values.riskLevel,
     };
 }
 function subscriptionFixture(values) {
+    const priceId = values.priceId ?? "price_test_123";
+    const priceSnapshotId = values.priceSnapshotId ?? "price_snapshot_test_123";
     return {
-        object: "subscription",
         merchantReference: "merchant_subscription_test_123",
         subscriptionId: "sub_test_123",
         sessionId: "sess_test_123",
         customerId: "cus_test_123",
         productId: "prd_test_123",
-        priceId: values.priceId ?? "price_test_123",
-        priceSnapshotId: values.priceSnapshotId ?? "price_snapshot_test_123",
+        priceId,
+        priceSnapshotId,
         createTime: SUBSCRIPTION_CREATED_AT,
         quantity: 1,
         paymentMethodType: "CARD",
         paymentInstrumentId: "pi_test_123",
-        trialStart: values.trialStart,
-        trialEnd: values.trialEnd,
+        trialStart: values.trialStart ?? null,
+        trialEnd: values.trialEnd ?? null,
         currentPeriodStart: values.currentPeriodStart ?? CURRENT_PERIOD_START,
         currentPeriodEnd: values.currentPeriodEnd ?? CURRENT_PERIOD_END,
-        cancelAt: values.cancelAt,
-        cancelAtPeriodEnd: values.cancelAtPeriodEnd ?? false,
-        canceledAt: values.canceledAt,
-        cancelReason: values.cancelReason,
-        activatedAt: values.activatedAt,
-        pastDueSince: values.pastDueSince,
+        cancelAt: values.cancelAt ?? null,
+        cancelAtPeriodEnd: values.cancelAtPeriodEnd ?? null,
+        canceledAt: values.canceledAt ?? null,
+        cancelReason: values.cancelReason ?? null,
         status: values.status,
         billing: "charge_automatically",
         currency: "USD",
-        recurringInvoiceItem: recurringInvoiceItem(),
-        metadata: baseMetadata(),
+        recurringInvoiceItem: values.recurringInvoiceItem === undefined
+            ? recurringInvoiceItem({ priceId, priceSnapshotId })
+            : values.recurringInvoiceItem,
+        upcomingInvoiceItem: values.upcomingInvoiceItem ?? null,
+        scheduledPhases: null,
+        elapsedCycles: values.elapsedCycles ?? null,
+        metadata: null,
     };
 }
 function invoiceFixture(values) {
     return {
-        object: "invoice",
         invoiceId: "inv_test_123",
         subscriptionId: "sub_test_123",
         merchantReference: "merchant_subscription_test_123",
-        orderId: "order_test_123",
+        orderId: values.orderId,
         customerId: "cus_test_123",
         merchantId: "merchant_test_123",
         status: values.status,
@@ -299,12 +313,12 @@ function invoiceFixture(values) {
         originalCurrency: "USD",
         billing: "charge_automatically",
         items: invoiceItems(),
-        metadata: baseMetadata(),
+        discount: null,
+        metadata: null,
     };
 }
 function refundFixture() {
     return {
-        object: "refund",
         createTime: REFUND_CREATED_AT,
         refundId: "rfd_test_123",
         refundMerchantOrderId: "merchant_refund_test_123",
@@ -320,7 +334,6 @@ function refundFixture() {
 }
 function disputeFixture() {
     return {
-        object: "dispute",
         chargeBackId: "dispute_test_123",
         channelCode: "CARD",
         orderId: "order_test_123",
@@ -358,8 +371,6 @@ function toLegacyResource(resource) {
         "currentPeriodEnd",
         "cancelAt",
         "canceledAt",
-        "activatedAt",
-        "pastDueSince",
     ]) {
         if (typeof legacy[field] === "number") {
             legacy[field] = new Date(legacy[field]).toISOString();

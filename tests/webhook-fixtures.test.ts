@@ -44,7 +44,7 @@ describe("merchant webhook fixtures", () => {
       expect(Object.keys(data)).toEqual(["object"]);
       expect(data.object).not.toBeNull();
       expect(Array.isArray(data.object)).toBe(false);
-      expect(data.object.object).toBe(type.startsWith("session.") ? "checkout.session" : type.split(".")[0]);
+      expect(data.object).not.toHaveProperty("object");
     }
   });
 
@@ -68,7 +68,7 @@ describe("merchant webhook fixtures", () => {
   it("uses production-style resource IDs and nests session/order resources in data.object", () => {
     expect(fixtureResource("session.complete")).toMatchObject({
       sessionId: "sess_test_123",
-      orderId: "order_test_123",
+      orderId: null,
       merchantReferenceId: "merchant_order_test_123",
       status: "completed",
       paymentStatus: "paid",
@@ -76,9 +76,39 @@ describe("merchant webhook fixtures", () => {
     expect(fixtureResource("order.succeeded")).toMatchObject({
       orderId: "order_test_123",
       sessionId: "sess_test_123",
+      invoiceId: "inv_test_123",
+      type: "recurring",
       merchantReferenceId: "merchant_order_test_123",
       status: "success",
     });
+  });
+
+  it("matches the stable order fields observed in sandbox webhook serialization", () => {
+    const created = fixtureResource("order.created");
+    const succeeded = fixtureResource("order.succeeded");
+
+    expect(created).toMatchObject({
+      status: "created",
+      paymentTime: null,
+      paymentExecutionDetails: null,
+      riskLevel: null,
+    });
+    expect(succeeded).toMatchObject({
+      status: "success",
+      paymentTime: expect.any(Number),
+      paymentExecutionDetails: null,
+      paymentMethod: {
+        paymentMethodType: "CARD",
+        paymentInstrumentId: "pi_test_123",
+        cardLastFour: "4242",
+        cardScheme: "VISA",
+        issuerBank: "Test Bank",
+        issuerRegion: "US",
+        wallet: null,
+      },
+    });
+    expect(created).not.toHaveProperty("createTime");
+    expect(succeeded).not.toHaveProperty("createTime");
   });
 
   it("keeps smoke-test reconciliation overrides inside canonical data.object", () => {
@@ -117,12 +147,43 @@ describe("merchant webhook fixtures", () => {
       expect(resource.createTime).toEqual(expect.any(Number));
       expect(resource.currentPeriodStart).toEqual(expect.any(Number));
       expect(resource.currentPeriodEnd).toEqual(expect.any(Number));
-      expect(resource.recurringInvoiceItem).toMatchObject({
+      expect(resource).not.toHaveProperty("activatedAt");
+      expect(resource).not.toHaveProperty("pastDueSince");
+      const lineItem = resource.recurringInvoiceItem ?? resource.upcomingInvoiceItem;
+      expect(lineItem).toMatchObject({
         amount: "19.99",
-        discountAmount: "0.00",
+        discountAmount: null,
         paymentAmount: "19.99",
+        couponTerms: null,
+        promotionCode: null,
+        description: "Local webhook test plan",
+        proration: null,
+        price: {
+          unitAmount: "19.99",
+          recurring: {
+            interval: "month",
+            intervalCount: 1,
+            pricingModel: "flat_rate",
+            tiersMode: null,
+            trialPeriodDays: null,
+          },
+        },
       });
     }
+
+    expect(fixtureResource("subscription.created")).toMatchObject({
+      recurringInvoiceItem: null,
+      upcomingInvoiceItem: expect.any(Object),
+      trialStart: null,
+      trialEnd: null,
+      cancelAt: null,
+      cancelAtPeriodEnd: null,
+      canceledAt: null,
+      cancelReason: null,
+      scheduledPhases: null,
+      elapsedCycles: null,
+      metadata: null,
+    });
   });
 
   it("uses invoice.items, millisecond times, and string amounts for all invoice fixtures", () => {
@@ -133,30 +194,49 @@ describe("merchant webhook fixtures", () => {
       expect(resource.currentPeriodStart).toEqual(expect.any(Number));
       expect(resource.currentPeriodEnd).toEqual(expect.any(Number));
       expect(resource).not.toHaveProperty("lineItems");
+      expect(resource).toHaveProperty("discount", null);
+      expect(resource).toHaveProperty("metadata", null);
       expect(resource.items).toEqual([
         expect.objectContaining({
           amount: "19.99",
-          discountAmount: "0.00",
+          discountAmount: null,
           paymentAmount: "19.99",
+          couponTerms: null,
+          promotionCode: null,
+          description: "Local webhook test plan",
+          proration: null,
+          price: expect.objectContaining({
+            unitAmount: "19.99",
+            recurring: {
+              interval: "month",
+              intervalCount: 1,
+              pricingModel: "flat_rate",
+              tiersMode: null,
+              trialPeriodDays: null,
+            },
+          }),
         }),
       ]);
     }
+
+    expect(fixtureResource("invoice.open")).toHaveProperty("orderId", null);
+    expect(fixtureResource("invoice.paid")).toHaveProperty("orderId", "order_test_123");
   });
 
-  it("uses production refund and dispute resource fields for the acceptance fixtures", () => {
+  it("uses canonical refund and dispute sample fields for local acceptance fixtures", () => {
     expect(fixtureResource("refund.succeeded")).toMatchObject({
-      object: "refund",
       refundId: "rfd_test_123",
       orderId: "order_test_123",
       status: "success",
       createTime: expect.any(Number),
     });
     expect(fixtureResource("dispute.created")).toMatchObject({
-      object: "dispute",
       chargeBackId: "dispute_test_123",
       orderId: "order_test_123",
       status: 1,
     });
+    expect(fixtureResource("refund.succeeded")).not.toHaveProperty("object");
+    expect(fixtureResource("dispute.created")).not.toHaveProperty("object");
   });
 
   it("rejects unsupported fixture types instead of generating an ambiguous mixed payload", () => {

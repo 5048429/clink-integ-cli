@@ -11,8 +11,8 @@ export function registerOrder(program: Command): void {
   order
     .command("get <order-id>")
     .description("Get order details")
-    .action(async (orderId: string, command: Command) => {
-      const { config, client } = await getCommandContext(command);
+    .action(async function (this: Command, orderId: string) {
+      const { config, client } = await getCommandContext(this);
       const result = await client.get(`/order/${encodeURIComponent(orderId)}`);
       printResult(result, config.outputMode);
     });

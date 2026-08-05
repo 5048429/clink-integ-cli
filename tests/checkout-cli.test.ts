@@ -41,6 +41,16 @@ function runClink(args: string[]): CliResult {
 }
 
 describe("checkout create dry-run", () => {
+  it("documents amount and currency as required for both checkout modes", () => {
+    const result = runClink(["checkout", "create", "--help"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const help = result.stdout.replace(/\s+/g, " ");
+    expect(help).toMatch(/--amount <amount>.*required for registered and inline checkout/);
+    expect(help).toMatch(/--currency <currency>.*required for registered and inline checkout/);
+  });
+
   it("builds inline priceDataList with amount equal to unitAmount times quantity", () => {
     const result = runClink([
       "--json",

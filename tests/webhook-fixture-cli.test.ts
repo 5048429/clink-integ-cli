@@ -68,6 +68,7 @@ describe("webhook fixture CLI profiles", () => {
       expect(Number.isInteger(fixture?.created)).toBe(true);
       expect(data.object).not.toBeNull();
       expect(Array.isArray(data.object)).toBe(false);
+      expect(data.object).not.toHaveProperty("object");
     }
   }, 20_000);
 
