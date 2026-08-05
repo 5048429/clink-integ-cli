@@ -86,6 +86,8 @@ describe("checkout create dry-run", () => {
       customerEmail: "buyer@example.com",
       originalAmount: 20,
       originalCurrency: "USD",
+      showPromotionCode: true,
+      localPriceOnly: false,
       priceDataList: [
         {
           name: "Two seats",
@@ -126,6 +128,8 @@ describe("checkout create dry-run", () => {
       priceId: "price_xxx",
       originalAmount: 10,
       originalCurrency: "USD",
+      showPromotionCode: true,
+      localPriceOnly: false,
     });
     expect(output.result.request.body).not.toHaveProperty("priceDataList");
   });

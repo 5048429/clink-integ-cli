@@ -1,12 +1,9 @@
-export interface CanonicalWebhookEvent {
-  id: string;
-  object: "event";
-  created: number;
-  type: string;
-  data: {
-    object: Record<string, unknown>;
-  };
-}
+import type { MerchantWebhookEvent } from "./contracts.js";
+
+export type CanonicalWebhookEvent = MerchantWebhookEvent;
+export type { MerchantWebhookEvent } from "./contracts.js";
+
+export const LEGACY_WEBHOOK_WARNING_CODE = "clink.webhook.legacy_payload";
 
 export interface NormalizeWebhookOptions {
   onLegacy?: (event: { id: string; type: string }) => void;
@@ -44,7 +41,12 @@ export function normalizeWebhookEvent(payload: unknown, options: NormalizeWebhoo
       resource.items = resource.lineItems;
       delete resource.lineItems;
     }
-    options.onLegacy?.({ id, type });
+    const legacyIdentity = { id, type };
+    if (options.onLegacy) {
+      options.onLegacy(legacyIdentity);
+    } else {
+      reportLegacyPayload(legacyIdentity);
+    }
     return {
       id,
       object: "event",
@@ -59,6 +61,14 @@ export function normalizeWebhookEvent(payload: unknown, options: NormalizeWebhoo
   throw new Error(
     `Unrecognized Clink webhook payload ${id}/${type}: data.object must be a resource object or a legacy resource type string.`,
   );
+}
+
+function reportLegacyPayload(event: { id: string; type: string }): void {
+  console.warn(JSON.stringify({
+    code: LEGACY_WEBHOOK_WARNING_CODE,
+    eventId: event.id,
+    eventType: event.type,
+  }));
 }
 
 function normalizeCreated(value: unknown, id: string, type: string): number {

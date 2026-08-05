@@ -457,14 +457,57 @@ clink webhook endpoint ensure \
 生成 fixture：
 
 ```bash
+clink webhook fixture invoice.paid --json
 clink webhook fixture invoice.paid --out ./fixtures/invoice-paid.json --json
 ```
 
-默认 profile 是 `merchant-webhook`：事件 ID 使用 `event_` 前缀，外层 `object` 固定为 `event`，`created` 是 Unix 毫秒整数，完整资源位于对象形式的 `data.object`，Invoice 行项目字段为 `items`。旧摊平格式只能通过 `--fixture-profile legacy` 为兼容旧测试显式生成，并会输出 deprecated warning：
+不传 `--out` 时，`--json` 会在命令结果中输出生成的 fixture；需要稳定文件时仍可使用 `--out`。
+
+默认 profile 是 `merchant-webhook`：事件 ID 使用 `event_` 前缀，外层 `object` 固定为 `event`，`created` 是 Unix 毫秒整数，完整资源位于对象形式的 `data.object`，Invoice 行项目字段为 `items`。旧摊平格式只能通过 `--fixture-profile legacy` 为兼容旧测试显式生成；该格式已弃用，并会输出 deprecated warning：
 
 ```bash
 clink webhook fixture invoice.paid --fixture-profile legacy --out ./fixtures/invoice-paid-legacy.json --json
 ```
+
+Merchant Webhook 与 Agent Customer Callback 是两套不同契约。本版本不会把 subscription 或 invoice 事件解释成摊平的 Agent Callback，也不提供 `agent-callback` fixture profile。
+
+fixture 覆盖稳定 `commerce` preset 的全部 31 个事件：
+
+```text
+session.complete
+session.expired
+order.created
+order.next_action
+order.succeeded
+order.failed
+refund.created
+refund.succeeded
+refund.failed
+subscription.created
+subscription.trialing
+subscription.activated
+subscription.incomplete_expired
+subscription.past_due
+subscription.cancelled
+subscription.updated.plan_changed
+subscription.updated.plan_change_canceled
+subscription.updated.renewed
+subscription.updated.cancel_at_period_end_set
+subscription.updated.cancel_at_period_end_revoked
+invoice.open
+invoice.paid
+invoice.void
+dispute.created
+dispute.updated
+dispute.won
+dispute.lost
+dispute.closed
+payment_method.added
+payment_method.default_change
+payment_method.update
+```
+
+这些 fixture 是用于 handler、路由和签名测试的确定性本地模拟，不能证明 Clink 服务端真实产生过相应事件。本轮 release candidate 尚未完成 `order.failed`、`refund.succeeded`、`subscription.past_due`、`invoice.void` 和服务端产生的 `dispute.created` 这五类真实 sandbox 载荷对齐验证。
 
 签名：
 
@@ -505,6 +548,12 @@ HMAC_SHA256(CLINK_WEBHOOK_SIGNING_KEY, X-Clink-Timestamp + "." + rawBody)
 Webhook handler 必须先保留 raw body 并完成验签，再执行 `JSON.parse` 和 normalize；不得先改写或重新序列化 body。canonical 载荷直接处理对象形式的 `data.object`。legacy 载荷只在 `data.object` 为字符串时迁移字段、把 ISO `created` 转成毫秒并把 `lineItems` 改为 `items`，同时记录只包含 `event.id` 和 `event.type` 的结构化 warning/metric。无法识别的载荷和未知事件必须返回非 2xx，进入项目的 Inbox/重试策略，不得静默返回 200。
 
 此外仍需幂等处理并容忍重试和乱序事件。订单匹配建议使用 `merchantReferenceId` + `sessionId` 双重匹配。
+
+### OpenAPI 生成类型与 canonical Webhook 类型
+
+`src/openapi/clink.openapi.ts` 由 `npm run openapi:refresh` 根据当前公开 OpenAPI 生成，不得手工修改。它用于跟踪公开 API，并继续为 REST 请求和响应提供类型。
+
+公开 OpenAPI 中部分资源字段可能滞后于生产序列化，例如可空字段和以字符串序列化的金额。CLI 对外导出的 Merchant Webhook 类型因此统一使用 `src/webhook/contracts.ts` 中手写维护的 canonical 信封；Invoice 和 Subscription 资源也使用其中的生产序列化类型。其他资源可复用生成的 OpenAPI DTO，但生成的事件信封不作为权威 Merchant Webhook 契约。
 
 ## Smoke Test 与真实支付验收
 

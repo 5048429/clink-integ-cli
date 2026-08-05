@@ -1,4 +1,6 @@
-import type { components, paths, webhooks } from "../openapi/clink.openapi.js";
+import type { components, paths } from "../openapi/clink.openapi.js";
+import type { InvoiceWebhookObject, MerchantWebhookEvent, SubscriptionWebhookObject } from "../webhook/contracts.js";
+export type { InvoiceItemPriceWebhookObject, InvoiceItemRecurringWebhookObject, InvoiceItemWebhookObject, InvoiceWebhookObject, MerchantWebhookEvent, SubscriptionWebhookObject, } from "../webhook/contracts.js";
 type JsonRequestBody<Operation> = Operation extends {
     requestBody?: infer RequestBody;
 } ? NonNullable<RequestBody> extends {
@@ -37,14 +39,16 @@ export type SubscriptionCreatePayload = JsonRequestBody<paths["/subscription"]["
 export type SubscriptionCreateResponse = JsonResponseBody<paths["/subscription"]["post"]>;
 export type RefundCreatePayload = JsonRequestBody<paths["/refund"]["post"]>;
 export type RefundCreateResponse = JsonResponseBody<paths["/refund"]["post"]>;
-export type OrderWebhookEvent = JsonRequestBody<webhooks["order"]["post"]>;
-export type SessionWebhookEvent = JsonRequestBody<webhooks["session"]["post"]>;
-export type RefundWebhookEvent = JsonRequestBody<webhooks["refund"]["post"]>;
-export type SubscriptionWebhookEvent = JsonRequestBody<webhooks["subscription"]["post"]>;
-export type InvoiceWebhookEvent = JsonRequestBody<webhooks["invoice"]["post"]>;
-export type CustomerVerifyWebhookEvent = JsonRequestBody<webhooks["customer.verify"]["post"]>;
-export type DisputeWebhookEvent = JsonRequestBody<webhooks["dispute"]["post"]>;
+type GeneratedEventType<TSchema extends keyof components["schemas"]> = NonNullable<components["schemas"][TSchema] extends {
+    type?: infer TType;
+} ? TType : never> & string;
+export type OrderWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventOrderVo">, components["schemas"]["OrderApiVo"]>;
+export type SessionWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventSessionVo">, components["schemas"]["SessionApiVo"]>;
+export type RefundWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventRefundVo">, components["schemas"]["RefundApiVo"]>;
+export type SubscriptionWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventSubVo">, SubscriptionWebhookObject>;
+export type InvoiceWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventInvoiceVo">, InvoiceWebhookObject>;
+export type CustomerVerifyWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventCustomerVerifyVo">, NonNullable<components["schemas"]["CustomerVerifyDataVo"]["object"]>>;
+export type DisputeWebhookEvent = MerchantWebhookEvent<GeneratedEventType<"EventDisputeVo">, components["schemas"]["ChargeBackWebhookVo"]>;
 export type ChargeBackWebhook = components["schemas"]["ChargeBackWebhookVo"];
 export type ClinkWebhookEvent = OrderWebhookEvent | SessionWebhookEvent | RefundWebhookEvent | SubscriptionWebhookEvent | InvoiceWebhookEvent | CustomerVerifyWebhookEvent | DisputeWebhookEvent;
-export type ClinkWebhookEventType = NonNullable<ClinkWebhookEvent["type"]>;
-export {};
+export type ClinkWebhookEventType = ClinkWebhookEvent["type"];

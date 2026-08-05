@@ -1,12 +1,7 @@
-export interface CanonicalWebhookEvent {
-    id: string;
-    object: "event";
-    created: number;
-    type: string;
-    data: {
-        object: Record<string, unknown>;
-    };
-}
+import type { MerchantWebhookEvent } from "./contracts.js";
+export type CanonicalWebhookEvent = MerchantWebhookEvent;
+export type { MerchantWebhookEvent } from "./contracts.js";
+export declare const LEGACY_WEBHOOK_WARNING_CODE = "clink.webhook.legacy_payload";
 export interface NormalizeWebhookOptions {
     onLegacy?: (event: {
         id: string;

@@ -1,3 +1,4 @@
+export const LEGACY_WEBHOOK_WARNING_CODE = "clink.webhook.legacy_payload";
 export function normalizeWebhookEvent(payload, options = {}) {
     if (!isRecord(payload)) {
         throw new Error("Unrecognized Clink webhook payload: expected a JSON object.");
@@ -27,7 +28,13 @@ export function normalizeWebhookEvent(payload, options = {}) {
             resource.items = resource.lineItems;
             delete resource.lineItems;
         }
-        options.onLegacy?.({ id, type });
+        const legacyIdentity = { id, type };
+        if (options.onLegacy) {
+            options.onLegacy(legacyIdentity);
+        }
+        else {
+            reportLegacyPayload(legacyIdentity);
+        }
         return {
             id,
             object: "event",
@@ -39,6 +46,13 @@ export function normalizeWebhookEvent(payload, options = {}) {
         };
     }
     throw new Error(`Unrecognized Clink webhook payload ${id}/${type}: data.object must be a resource object or a legacy resource type string.`);
+}
+function reportLegacyPayload(event) {
+    console.warn(JSON.stringify({
+        code: LEGACY_WEBHOOK_WARNING_CODE,
+        eventId: event.id,
+        eventType: event.type,
+    }));
 }
 function normalizeCreated(value, id, type) {
     if (typeof value === "number" && Number.isInteger(value))

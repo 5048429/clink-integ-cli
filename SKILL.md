@@ -24,6 +24,10 @@ Use this skill when the user asks to:
 - Resolve webhook endpoint events from the selected environment's `GET /webhook/events` response; do not treat a build-time event enum as authoritative.
 - Treat `webhook endpoint ensure` event updates as safe merges by default. Preserve existing events, require `--allow-remove-events` for explicit replacement, show added/removed/unchanged before dangerous writes, and verify the post-write event set.
 - Keep webhook signature verification on the untouched raw body before parsing or normalizing fixture formats.
+- Keep `merchant-webhook` as the default fixture profile and the flattened `legacy` profile explicit and deprecated. Merchant Webhooks and Agent Customer Callbacks are separate contracts.
+- Keep `core` fixed at its compatibility set of 6 events; recommend the stable 31-event `commerce` preset for complete charging integrations and resolve every selection against the runtime catalog.
+- Treat fixtures and signed simulations as local test inputs, never as evidence of a real Clink server event or completed sandbox acceptance.
+- Regenerate `src/openapi/clink.openapi.ts` with `npm run openapi:refresh`; never edit it manually. Keep canonical Merchant Webhook serialization contracts in `src/webhook/contracts.ts` when the public OpenAPI resource schema is incomplete.
 - Do not hardcode real Secret Keys or webhook signing keys.
 - Prefer `env:CLINK_SECRET_KEY` and `env:CLINK_WEBHOOK_SIGNING_KEY` references for stored profiles.
 - Never print unmasked secrets in normal output.
@@ -38,6 +42,8 @@ Use this skill when the user asks to:
 - `src/api/client.ts`: Clink REST client
 - `src/config.ts`: local profile and environment resolution
 - `src/webhook/`: signing and fixture helpers
+- `src/webhook/contracts.ts`: canonical production Merchant Webhook envelope and resource serialization types
+- `src/openapi/clink.openapi.ts`: generated public OpenAPI types; machine-owned
 - `docs/requirements.md`: product requirements
 - `docs/roadmap.md`: implementation roadmap
 - `docs/agent-workflow.md`: parallel agent task plan

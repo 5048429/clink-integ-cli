@@ -77,6 +77,8 @@ function buildCheckoutPayload(options) {
         returnUrl: options.returnUrl,
         paymentMethodType: options.paymentMethodType,
         allowPromotionCodes: Boolean(options.allowPromotionCodes),
+        showPromotionCode: true,
+        localPriceOnly: false,
         promotionCode: options.promotionCode,
     };
     if (mode === "registered") {

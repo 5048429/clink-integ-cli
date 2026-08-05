@@ -38,16 +38,21 @@ export function registerWebhook(program: Command): void {
 
   webhook
     .command("fixture")
-    .description("Write a stable local merchant webhook fixture to disk")
+    .description("Generate a stable local merchant webhook fixture and optionally write it to disk")
     .argument("<type>", "Generated event type; see the supported list below")
-    .requiredOption("--out <file>", "Output JSON file")
+    .option("--out <file>", "Optional output JSON file; without it the fixture is printed")
     .option("--fixture-profile <profile>", "Fixture profile: merchant-webhook or deprecated legacy (old tests only)", DEFAULT_WEBHOOK_FIXTURE_PROFILE)
     .addHelpText("after", WEBHOOK_FIXTURE_HELP)
-    .action(async (type: string, options: { out: string; fixtureProfile: string }, command: Command) => {
+    .action(async (type: string, options: { out?: string; fixtureProfile: string }, command: Command) => {
       const { config } = await getCommandContext(command);
       const profile = parseWebhookFixtureProfile(options.fixtureProfile);
       warnDeprecatedFixtureProfile(profile);
       const event = createWebhookFixture(type, { profile });
+      if (!options.out) {
+        printResult(event, config.outputMode);
+        return;
+      }
+
       await mkdir(dirname(options.out), { recursive: true });
       await writeFile(options.out, `${JSON.stringify(event, null, 2)}\n`, "utf8");
 

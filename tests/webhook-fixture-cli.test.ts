@@ -4,22 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { WEBHOOK_FIXTURE_TYPES } from "../src/webhook/fixtures.js";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
-
-const REQUIRED_ACCEPTANCE_FIXTURES = [
-  "order.succeeded",
-  "order.failed",
-  "refund.succeeded",
-  "subscription.activated",
-  "subscription.updated.renewed",
-  "subscription.past_due",
-  "subscription.cancelled",
-  "invoice.open",
-  "invoice.paid",
-  "invoice.void",
-  "dispute.created",
-] as const;
 
 function runFixture(type = "invoice.paid", profile?: string) {
   const tempDir = join(tmpdir(), `clink-webhook-fixture-cli-${process.pid}-${Date.now()}-${Math.random()}`);
@@ -33,6 +20,22 @@ function runFixture(type = "invoice.paid", profile?: string) {
     encoding: "utf8",
   });
   const fixture = result.status === 0 ? JSON.parse(readFileSync(out, "utf8")) as Record<string, unknown> : undefined;
+  rmSync(tempDir, { recursive: true, force: true });
+  return { result, fixture };
+}
+
+function runFixtureWithoutOut(type: string, json = false) {
+  const tempDir = join(tmpdir(), `clink-webhook-fixture-cli-stdout-${process.pid}-${Date.now()}-${Math.random()}`);
+  mkdirSync(tempDir, { recursive: true });
+  const args = ["--import", "tsx", "src/index.ts"];
+  if (json) args.push("--json");
+  args.push("webhook", "fixture", type);
+  const result = spawnSync(process.execPath, args, {
+    cwd: repoRoot,
+    env: { ...process.env, CLINK_CONFIG_PATH: join(tempDir, "config.json") },
+    encoding: "utf8",
+  });
+  const fixture = result.status === 0 ? JSON.parse(result.stdout) as Record<string, unknown> : undefined;
   rmSync(tempDir, { recursive: true, force: true });
   return { result, fixture };
 }
@@ -52,8 +55,8 @@ describe("webhook fixture CLI profiles", () => {
     expect(fixture).not.toHaveProperty("livemode");
   });
 
-  it("executes all 11 acceptance fixture commands and parses canonical JSON files", () => {
-    for (const type of REQUIRED_ACCEPTANCE_FIXTURES) {
+  it("executes all 31 stable commerce fixture commands and parses canonical JSON files", () => {
+    for (const type of WEBHOOK_FIXTURE_TYPES) {
       const { result, fixture } = runFixture(type);
       expect(result.status, `${type}: ${result.stderr}`).toBe(0);
       expect(result.stderr).toBe("");
@@ -70,7 +73,41 @@ describe("webhook fixture CLI profiles", () => {
       expect(Array.isArray(data.object)).toBe(false);
       expect(data.object).not.toHaveProperty("object");
     }
+  }, 60_000);
+
+  it("prints install-smoke fixtures as JSON when --out is omitted", () => {
+    for (const type of [
+      "invoice.paid",
+      "subscription.past_due",
+      "refund.failed",
+      "dispute.closed",
+      "payment_method.update",
+    ] as const) {
+      const { result, fixture } = runFixtureWithoutOut(type);
+      expect(result.status, `${type}: ${result.stderr}`).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(fixture).toMatchObject({
+        id: expect.stringMatching(/^event_/),
+        object: "event",
+        created: expect.any(Number),
+        type,
+        data: { object: expect.any(Object) },
+      });
+    }
   }, 20_000);
+
+  it("prints the fixture itself with --json when --out is omitted", () => {
+    const { result, fixture } = runFixtureWithoutOut("invoice.paid", true);
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(fixture).toMatchObject({
+      id: expect.stringMatching(/^event_/),
+      object: "event",
+      type: "invoice.paid",
+      data: { object: { invoiceId: "inv_test_123" } },
+    });
+    expect(fixture).not.toHaveProperty("fixture");
+  });
 
   it("requires explicit legacy selection and prints a deprecated warning", () => {
     const { result, fixture } = runFixture("invoice.paid", "legacy");
@@ -91,7 +128,10 @@ describe("webhook fixture CLI profiles", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toMatch(/Default merchant-webhook contract/);
     expect(result.stdout).toMatch(/refund\.succeeded/);
+    expect(result.stdout).toMatch(/refund\.failed/);
     expect(result.stdout).toMatch(/dispute\.created/);
+    expect(result.stdout).toMatch(/payment_method\.update/);
+    expect(result.stdout).toMatch(/without it the fixture\s+is printed/);
     expect(result.stdout).toMatch(/only for compatibility with old tests/);
   });
 });

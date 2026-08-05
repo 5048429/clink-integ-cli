@@ -1,28 +1,7 @@
+import { WEBHOOK_COMMERCE_EVENTS } from "./event-catalog.js";
 export const WEBHOOK_FIXTURE_PROFILES = ["merchant-webhook", "legacy"];
 export const DEFAULT_WEBHOOK_FIXTURE_PROFILE = "merchant-webhook";
-export const WEBHOOK_FIXTURE_TYPES = [
-    "session.complete",
-    "session.expired",
-    "order.created",
-    "order.succeeded",
-    "order.failed",
-    "refund.succeeded",
-    "subscription.created",
-    "subscription.trialing",
-    "subscription.activated",
-    "subscription.incomplete_expired",
-    "subscription.past_due",
-    "subscription.cancelled",
-    "subscription.updated.plan_changed",
-    "subscription.updated.plan_change_canceled",
-    "subscription.updated.renewed",
-    "subscription.updated.cancel_at_period_end_set",
-    "subscription.updated.cancel_at_period_end_revoked",
-    "invoice.open",
-    "invoice.paid",
-    "invoice.void",
-    "dispute.created",
-];
+export const WEBHOOK_FIXTURE_TYPES = [...WEBHOOK_COMMERCE_EVENTS];
 const FIXTURE_EVENT_CREATED = Date.parse("2025-01-15T12:00:00.000Z");
 const CHECKOUT_CREATED_AT = "2025-01-15T11:45:00.000Z";
 const CHECKOUT_EXPIRES_AT = "2025-01-15T12:45:00.000Z";
@@ -99,6 +78,12 @@ const fixtureBuilders = {
         paymentExecutionDetails: null,
         riskLevel: null,
     }),
+    "order.next_action": () => orderFixture({
+        status: "requires_action",
+        paymentTime: null,
+        paymentExecutionDetails: null,
+        riskLevel: null,
+    }),
     "order.succeeded": () => orderFixture({
         status: "success",
         paymentTime: ORDER_PAYMENT_TIME,
@@ -117,7 +102,13 @@ const fixtureBuilders = {
         ],
         riskLevel: "high",
     }),
-    "refund.succeeded": () => refundFixture(),
+    "refund.created": () => refundFixture({ status: "created" }),
+    "refund.succeeded": () => refundFixture({ status: "success" }),
+    "refund.failed": () => refundFixture({
+        status: "failed",
+        failureCode: "already_refunded",
+        failureMessage: "The local fixture order has already been refunded.",
+    }),
     "subscription.created": () => subscriptionFixture({
         status: "incomplete",
         recurringInvoiceItem: null,
@@ -147,7 +138,14 @@ const fixtureBuilders = {
     "invoice.open": () => invoiceFixture({ status: "open", paymentAmount: "19.99", orderId: null }),
     "invoice.paid": () => invoiceFixture({ status: "paid", paymentAmount: "19.99", orderId: "order_test_123" }),
     "invoice.void": () => invoiceFixture({ status: "void", paymentAmount: "0.00", orderId: null }),
-    "dispute.created": () => disputeFixture(),
+    "dispute.created": () => disputeFixture(1),
+    "dispute.updated": () => disputeFixture(2),
+    "dispute.won": () => disputeFixture(3),
+    "dispute.lost": () => disputeFixture(4),
+    "dispute.closed": () => disputeFixture(5),
+    "payment_method.added": () => paymentMethodFixture(),
+    "payment_method.default_change": () => paymentMethodFixture(),
+    "payment_method.update": () => paymentMethodFixture({ visaRegistrationSucceeded: true }),
 };
 function assertFixtureType(type) {
     if (WEBHOOK_FIXTURE_TYPES.includes(type))
@@ -317,7 +315,7 @@ function invoiceFixture(values) {
         metadata: null,
     };
 }
-function refundFixture() {
+function refundFixture(values) {
     return {
         createTime: REFUND_CREATED_AT,
         refundId: "rfd_test_123",
@@ -326,13 +324,15 @@ function refundFixture() {
         customerId: "cus_test_123",
         refundAmount: 19.99,
         refundCurrency: "USD",
-        status: "success",
+        status: values.status,
         refundReason: "Customer Initiated Refund",
         paymentInstrumentId: "pi_test_123",
         metadata: baseMetadata(),
+        ...(values.failureCode === undefined ? {} : { failureCode: values.failureCode }),
+        ...(values.failureMessage === undefined ? {} : { failureMessage: values.failureMessage }),
     };
 }
-function disputeFixture() {
+function disputeFixture(status) {
     return {
         chargeBackId: "dispute_test_123",
         channelCode: "CARD",
@@ -346,10 +346,33 @@ function disputeFixture() {
         originalCurrency: "USD",
         reasonCode: "fraudulent",
         reasonDescription: "Cardholder reported the payment as unrecognized.",
-        status: 1,
+        status,
         evidenceDeadline: "2025-01-30T12:00:00.000Z",
         channelDisputeTime: "2025-01-16T09:00:00.000Z",
         networkReasonCode: "10.4",
+    };
+}
+function paymentMethodFixture(values = {}) {
+    return {
+        id: "pi_test_123",
+        customerId: "cus_test_123",
+        type: "card",
+        card: {
+            last4: "4242",
+            name: "Test User",
+            expiryYear: "2030",
+            expiryMonth: "12",
+            scheme: "visa",
+            funding: "credit",
+            issuerRegion: "US",
+            issuerBank: "Test Bank",
+            billingAddress: null,
+        },
+        wallet: null,
+        created: FIXTURE_EVENT_CREATED,
+        ...(values.visaRegistrationSucceeded === undefined
+            ? {}
+            : { visaRegistrationSucceeded: values.visaRegistrationSucceeded }),
     };
 }
 function resourceObjectForType(type) {
