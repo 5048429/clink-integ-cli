@@ -1,71 +1,42 @@
 import { exec } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { readFile, rm } from "node:fs/promises";
+import { createInterface } from "node:readline/promises";
 import { promisify } from "node:util";
 import type { Command } from "commander";
-import { saveProfile } from "../config.js";
+import type { ClinkApiClient } from "../api/client.js";
+import { assertAtomicTextFileTarget, writeTextFileAtomically } from "../atomic-write.js";
+import { getConfigPath, saveProfile } from "../config.js";
 import { maskSecret, parseIntegerOption, printResult, requireOption } from "../output.js";
+import {
+  WEBHOOK_CHECKOUT_EVENTS,
+  WEBHOOK_COMMERCE_EVENTS,
+  WEBHOOK_CORE_EVENTS,
+  WEBHOOK_DISPUTE_EVENTS,
+  WEBHOOK_PAYMENT_METHOD_EVENTS,
+  WEBHOOK_PRESET_NAMES,
+  WEBHOOK_SUBSCRIPTION_EVENTS,
+  parseWebhookRuntimeCatalog,
+  resolveWebhookEventSelection,
+  type WebhookEventSelection,
+  type WebhookRuntimeCatalog,
+} from "../webhook/event-catalog.js";
 import { getCommandContext } from "./helpers.js";
 
 const WEBHOOK_ENDPOINT_PATH = "/webhook/endpoints";
-const WEBHOOK_EVENT_CATALOG = [
-  { name: "order.created", code: 1, description: "Order created" },
-  { name: "order.succeeded", code: 2, description: "Order payment succeeded" },
-  { name: "order.failed", code: 3, description: "Order payment failed" },
-  { name: "refund.created", code: 4, description: "Refund created" },
-  { name: "refund.succeeded", code: 5, description: "Refund succeeded" },
-  { name: "refund.failed", code: 6, description: "Refund failed" },
-  { name: "subscription.created", code: 7, description: "Subscription created" },
-  { name: "subscription.trialing", code: 8, description: "Subscription trialing" },
-  { name: "subscription.activated", code: 9, description: "Subscription activated" },
-  { name: "subscription.incomplete_expired", code: 10, description: "Subscription incomplete expired" },
-  { name: "subscription.past_due", code: 11, description: "Subscription past due" },
-  { name: "subscription.cancelled", code: 12, description: "Subscription cancelled" },
-  { name: "invoice.open", code: 13, description: "Invoice open" },
-  { name: "invoice.paid", code: 14, description: "Invoice paid" },
-  { name: "invoice.void", code: 15, description: "Invoice void" },
-  { name: "order.next_action", code: 16, description: "Order next action required" },
-  { name: "subscription.updated.plan_changed", code: 17, description: "Subscription plan changed" },
-  { name: "subscription.updated.plan_change_canceled", code: 18, description: "Subscription plan change canceled" },
-  { name: "subscription.updated.renewed", code: 19, description: "Subscription renewed" },
-  { name: "subscription.updated.cancel_at_period_end_set", code: 20, description: "Subscription cancel at period end set" },
-  { name: "subscription.updated.cancel_at_period_end_revoked", code: 21, description: "Subscription cancel at period end revoked" },
-  { name: "session.complete", code: 22, description: "Checkout session completed" },
-  { name: "session.expired", code: 23, description: "Checkout session expired" },
-  { name: "dispute.created", code: 24, description: "Dispute created" },
-  { name: "dispute.updated", code: 25, description: "Dispute updated" },
-  { name: "dispute.won", code: 26, description: "Dispute won" },
-  { name: "dispute.lost", code: 27, description: "Dispute lost" },
-  { name: "dispute.closed", code: 28, description: "Dispute closed" },
-  { name: "customer.verify", code: 29, description: "Customer verified" },
-  { name: "payment_method.added", code: 30, description: "Payment method added" },
-  { name: "payment_method.default_change", code: 31, description: "Default payment method changed" },
-  { name: "risk_rule.updated", code: 32, description: "Risk rule updated" },
-  { name: "agent_order.succeeded", code: 33, description: "Agent order succeeded" },
-  { name: "agent_order.failed", code: 34, description: "Agent order failed" },
-  { name: "agent_refund.succeeded", code: 35, description: "Agent refund succeeded" },
-  { name: "agent_refund.failed", code: 36, description: "Agent refund failed" },
-  { name: "agent_refund.approved", code: 37, description: "Agent refund approved" },
-  { name: "agent_refund.rejected", code: 38, description: "Agent refund rejected" },
-  { name: "payment_method.update", code: 39, description: "Payment method updated" },
-  { name: "purchase_instruction.created", code: 40, description: "Purchase instruction created" },
-  { name: "purchase_instruction.activated", code: 41, description: "Purchase instruction activated" },
-  { name: "purchase_instruction.updated", code: 42, description: "Purchase instruction updated" },
-  { name: "purchase_instruction.cancelled", code: 43, description: "Purchase instruction cancelled" },
-  { name: "vic_device.binding_succeeded", code: 44, description: "VIC device binding succeeded" },
-] as const;
-const WEBHOOK_ALL_EVENTS = WEBHOOK_EVENT_CATALOG.map((event) => event.name);
-const WEBHOOK_CORE_EVENTS = [
-  "session.complete",
-  "order.succeeded",
-  "order.failed",
-  "refund.succeeded",
-  "subscription.created",
-  "invoice.paid",
-] as const;
-const WEBHOOK_SUPPORTED_EVENTS = new Set<string>(WEBHOOK_ALL_EVENTS);
 const WEBHOOK_SIGNING_KEY_ENV = "CLINK_WEBHOOK_SIGNING_KEY";
 const execAsync = promisify(exec);
+const ENDPOINT_EVENT_PRESET_HELP = [
+  "",
+  "Preset expansion (validated against the selected environment's GET /webhook/events):",
+  `  core (${WEBHOOK_CORE_EVENTS.length}; compatibility only): ${WEBHOOK_CORE_EVENTS.join(", ")}`,
+  "    Warning: core omits the full subscription lifecycle, dunning/past_due, cancellation, disputes/chargebacks, refund.failed, and session.expired.",
+  `  checkout (${WEBHOOK_CHECKOUT_EVENTS.length}): ${WEBHOOK_CHECKOUT_EVENTS.join(", ")}`,
+  `  subscriptions (${WEBHOOK_SUBSCRIPTION_EVENTS.length}): ${WEBHOOK_SUBSCRIPTION_EVENTS.join(", ")}`,
+  `  disputes (${WEBHOOK_DISPUTE_EVENTS.length}): ${WEBHOOK_DISPUTE_EVENTS.join(", ")}`,
+  `  payment-methods (${WEBHOOK_PAYMENT_METHOD_EVENTS.length}): ${WEBHOOK_PAYMENT_METHOD_EVENTS.join(", ")}`,
+  `  commerce (${WEBHOOK_COMMERCE_EVENTS.length}): ${WEBHOOK_COMMERCE_EVENTS.join(", ")}`,
+  "  all (dynamic): every event returned by the runtime catalog, including future additions.",
+].join("\n");
 
 type WebhookEndpoint = {
   id?: string;
@@ -125,6 +96,13 @@ type EnsureOptions = CommonWriteOptions & {
   rotateSecret?: boolean;
   rotateSecretIfUnavailable?: boolean;
   returnSigningSecret?: boolean;
+  allowRemoveEvents?: boolean;
+};
+
+type WebhookEventDiff = {
+  added: string[];
+  removed: string[];
+  unchanged: string[];
 };
 
 type EnvSyncResult = {
@@ -141,24 +119,36 @@ type EnvSyncResult = {
   };
 };
 
+type SigningSecretPersistence = {
+  saved: boolean;
+  signingSecret?: string;
+  envSync?: EnvSyncResult;
+};
+
+type EnvFileSnapshot = {
+  filePath: string;
+  existed: boolean;
+  raw: string;
+};
+
 export function registerWebhookEndpointSubcommands(parent: Command, options: RegisterWebhookEndpointOptions = {}): void {
   parent
     .command("events")
-    .description("List Secret Key API-supported webhook event names")
+    .description("List the runtime webhook event catalog, aliases, and CLI presets")
+    .addHelpText("after", ENDPOINT_EVENT_PRESET_HELP)
     .action(async function (this: Command) {
       const { config, client } = await getCommandContext(this);
-      const result = await client.get<WebhookEndpointEnvelope>("/webhook/events");
+      const { result, catalog } = await loadRuntimeWebhookCatalog(client);
+      const presets = describeRuntimePresets(catalog);
       printResult(
         {
           result,
-          fallbackSupportedEvents: WEBHOOK_EVENT_CATALOG,
-          fallbackAliases: {
-            all: WEBHOOK_ALL_EVENTS,
-            core: WEBHOOK_CORE_EVENTS,
-          },
+          events: catalog.events,
+          aliases: catalog.aliases,
+          presets,
         },
         config.outputMode,
-        config.dryRun ? "Webhook event list dry-run generated. Use --json to view request metadata." : formatEventResult(result),
+        [formatEventCatalog(catalog.events), "", formatPresetCatalog(presets)].join("\n"),
       );
     });
 
@@ -219,49 +209,57 @@ export function registerWebhookEndpointSubcommands(parent: Command, options: Reg
     .command("create")
     .description("Create a webhook endpoint with the Secret Key API")
     .requiredOption("--url <https-url>", "HTTPS webhook endpoint URL")
-    .requiredOption("--events <events>", "Comma-separated event names, core, or all")
+    .requiredOption("--events <events>", "Event names or combinable presets: core, checkout, subscriptions, disputes, payment-methods, commerce, all")
     .option("--description <text>", "Webhook endpoint description")
     .option("--remark <text>", "Alias for --description")
     .option("--save-secret", "Save the returned signing secret into the current clink profile")
     .option("--show-secret", "Print the full signing secret in command output")
-    .option("--allow-unknown-events", "Send event names without local validation")
-    .option("--disabled", "Create the webhook but leave it disabled");
+    .option("--allow-unknown-events", "Deprecated; runtime GET /webhook/events validation is always enforced")
+    .option("--disabled", "Create the webhook but leave it disabled")
+    .addHelpText("after", ENDPOINT_EVENT_PRESET_HELP);
   addEnvSyncOptions(create);
   addLegacyDashboardOptions(create, options);
   create.action(async function (this: Command, createOptions: CommonWriteOptions) {
     const { config, client } = await getCommandContext(this);
+    const { catalog } = await loadRuntimeWebhookCatalog(client);
+    const eventSelection = resolveWebhookEventSelection(createOptions.events, catalog, {
+      allowUnknownEvents: Boolean(createOptions.allowUnknownEvents),
+    });
     const body = {
       url: parseHttpsEndpoint(createOptions.url),
-      events: parseWebhookEvents(createOptions.events, Boolean(createOptions.allowUnknownEvents)),
+      events: eventSelection.resolvedEvents,
       description: getDescription(createOptions),
       enabled: !createOptions.disabled,
     };
+    await preflightSigningSecretDestinations(createOptions, config.dryRun);
     const result = await client.post<WebhookEndpointEnvelope<WebhookEndpoint>, typeof body>(WEBHOOK_ENDPOINT_PATH, { body });
-    await saveSigningSecretIfRequested(config.profile, result, Boolean(createOptions.saveSecret), config.dryRun);
-    const envSync = await syncEnvAndRestartIfRequested(createOptions, result, config.dryRun);
+    const persistence = await persistSigningSecretDestinations(config.profile, createOptions, result, config.dryRun);
+    const envSync = await finishRestartAfterPersistence(createOptions, persistence, config.dryRun);
     const endpoint = extractEndpoint(result);
     printResult(
       {
         profile: config.profile,
         ignoredMerchantId: createOptions.merchantId,
-        saved: Boolean(createOptions.saveSecret),
+        eventSelection,
+        saved: persistence.saved,
         envSync,
         endpoint: maskWebhookSecrets(endpoint, Boolean(createOptions.showSecret)),
         result: maskWebhookSecrets(result, Boolean(createOptions.showSecret)),
       },
       config.outputMode,
-      config.dryRun
-        ? "Webhook endpoint create dry-run generated. Use --json to view request metadata."
-        : [
-            `Created webhook endpoint: ${endpoint?.url ?? body.url}`,
-            `Endpoint ID: ${endpoint?.id ?? "unknown"}`,
-            `Events: ${(endpoint?.events ?? body.events).join(", ")}`,
-            formatSigningSecretLine(endpoint, Boolean(createOptions.showSecret)),
-            createOptions.saveSecret ? `Saved signing secret into profile "${config.profile}".` : "Signing secret was not saved. Re-run with --save-secret to store it.",
-            formatEnvSyncLine(envSync),
-          ]
-            .filter(Boolean)
-            .join("\n"),
+      [
+        formatEventSelection(eventSelection),
+        config.dryRun
+          ? "Dry run: webhook endpoint create request generated; no endpoint was written."
+          : `Created webhook endpoint: ${endpoint?.url ?? body.url}`,
+        `Endpoint ID: ${endpoint?.id ?? "unknown"}`,
+        `Events: ${(endpoint?.events ?? body.events).join(", ")}`,
+        formatSigningSecretLine(endpoint, Boolean(createOptions.showSecret)),
+        createOptions.saveSecret ? `Saved signing secret into profile "${config.profile}".` : "Signing secret was not saved. Re-run with --save-secret to store it.",
+        formatEnvSyncLine(envSync),
+      ]
+        .filter(Boolean)
+        .join("\n"),
     );
   });
 
@@ -269,15 +267,16 @@ export function registerWebhookEndpointSubcommands(parent: Command, options: Reg
     .command("update <endpoint-id>")
     .description("Update a webhook endpoint with the Secret Key API")
     .option("--url <https-url>", "HTTPS webhook endpoint URL")
-    .option("--events <events>", "Comma-separated event names, core, or all")
+    .option("--events <events>", "Event names or combinable presets: core, checkout, subscriptions, disputes, payment-methods, commerce, all")
     .option("--description <text>", "Webhook endpoint description")
     .option("--remark <text>", "Alias for --description")
     .option("--enabled <boolean>", "Set enabled status")
     .option("--disabled", "Disable the webhook endpoint")
-    .option("--allow-unknown-events", "Send event names without local validation")
+    .option("--allow-unknown-events", "Deprecated; runtime GET /webhook/events validation is always enforced")
     .option("--rotate-secret", "Rotate the signing secret after updating")
     .option("--save-secret", "Save the rotated signing secret into the current clink profile")
-    .option("--show-secret", "Print the full rotated signing secret in command output");
+    .option("--show-secret", "Print the full rotated signing secret in command output")
+    .addHelpText("after", ENDPOINT_EVENT_PRESET_HELP);
   addEnvSyncOptions(update);
   addLegacyDashboardOptions(update, options);
   update.action(async function (
@@ -287,11 +286,19 @@ export function registerWebhookEndpointSubcommands(parent: Command, options: Reg
   ) {
     requireOption("endpoint-id", endpointId);
     const { config, client } = await getCommandContext(this);
-    const body = buildUpdateBody(updateOptions);
+    const eventSelection = updateOptions.events
+      ? resolveWebhookEventSelection(
+          updateOptions.events,
+          (await loadRuntimeWebhookCatalog(client)).catalog,
+          { allowUnknownEvents: Boolean(updateOptions.allowUnknownEvents) },
+        )
+      : undefined;
+    const body = buildUpdateBody(updateOptions, eventSelection?.resolvedEvents);
     const shouldRotate = Boolean(updateOptions.rotateSecret || updateOptions.saveSecret || updateOptions.showSecret || updateOptions.syncEnvFile);
     if (Object.keys(body).length === 0 && !shouldRotate) {
       throw new Error("Provide at least one of --url, --events, --description, --remark, --enabled, --disabled, or --rotate-secret.");
     }
+    await preflightSigningSecretDestinations(updateOptions, config.dryRun);
 
     const updateResult = Object.keys(body).length > 0
       ? await client.patch<WebhookEndpointEnvelope<WebhookEndpoint>, typeof body>(`${WEBHOOK_ENDPOINT_PATH}/${encodeURIComponent(endpointId)}`, { body })
@@ -299,33 +306,35 @@ export function registerWebhookEndpointSubcommands(parent: Command, options: Reg
     const rotateResult = shouldRotate
       ? await client.post<WebhookEndpointEnvelope<WebhookEndpoint>>(`${WEBHOOK_ENDPOINT_PATH}/${encodeURIComponent(endpointId)}/rotate-secret`)
       : undefined;
-    await saveSigningSecretIfRequested(config.profile, rotateResult ?? updateResult, Boolean(updateOptions.saveSecret), config.dryRun);
     const result = rotateResult ?? updateResult;
-    const envSync = await syncEnvAndRestartIfRequested(updateOptions, result, config.dryRun);
+    const persistence = await persistSigningSecretDestinations(config.profile, updateOptions, result, config.dryRun);
+    const envSync = await finishRestartAfterPersistence(updateOptions, persistence, config.dryRun);
     const endpoint = extractEndpoint(result);
     printResult(
       {
         profile: config.profile,
         ignoredMerchantId: updateOptions.merchantId,
-        saved: Boolean(updateOptions.saveSecret),
+        eventSelection,
+        saved: persistence.saved,
         envSync,
         updateResult: maskWebhookSecrets(updateResult, false),
         rotateResult: maskWebhookSecrets(rotateResult, Boolean(updateOptions.showSecret)),
         endpoint: maskWebhookSecrets(endpoint, Boolean(updateOptions.showSecret)),
       },
       config.outputMode,
-      config.dryRun
-        ? "Webhook endpoint update dry-run generated. Use --json to view request metadata."
-        : [
-            `Updated webhook endpoint: ${endpoint?.url ?? endpointId}`,
-            `Endpoint ID: ${endpoint?.id ?? endpointId}`,
-            endpoint?.events ? `Events: ${endpoint.events.join(", ")}` : undefined,
-            formatSigningSecretLine(endpoint, Boolean(updateOptions.showSecret)),
-            updateOptions.saveSecret ? `Saved signing secret into profile "${config.profile}".` : undefined,
-            formatEnvSyncLine(envSync),
-          ]
-            .filter(Boolean)
-            .join("\n"),
+      [
+        eventSelection ? formatEventSelection(eventSelection) : undefined,
+        config.dryRun
+          ? "Dry run: webhook endpoint update request generated; no endpoint was written."
+          : `Updated webhook endpoint: ${endpoint?.url ?? endpointId}`,
+        `Endpoint ID: ${endpoint?.id ?? endpointId}`,
+        endpoint?.events ? `Events: ${endpoint.events.join(", ")}` : undefined,
+        formatSigningSecretLine(endpoint, Boolean(updateOptions.showSecret)),
+        updateOptions.saveSecret ? `Saved signing secret into profile "${config.profile}".` : undefined,
+        formatEnvSyncLine(envSync),
+      ]
+        .filter(Boolean)
+        .join("\n"),
     );
   });
 
@@ -370,14 +379,15 @@ export function registerWebhookEndpointSubcommands(parent: Command, options: Reg
   rotateSecret.action(async function (this: Command, endpointId: string, rotateOptions: { saveSecret?: boolean; showSecret?: boolean; syncEnvFile?: string; restartCommand?: string }) {
       requireOption("endpoint-id", endpointId);
       const { config, client } = await getCommandContext(this);
+      await preflightSigningSecretDestinations(rotateOptions, config.dryRun);
       const result = await client.post<WebhookEndpointEnvelope<WebhookEndpoint>>(`${WEBHOOK_ENDPOINT_PATH}/${encodeURIComponent(endpointId)}/rotate-secret`);
-      await saveSigningSecretIfRequested(config.profile, result, Boolean(rotateOptions.saveSecret), config.dryRun);
-      const envSync = await syncEnvAndRestartIfRequested(rotateOptions, result, config.dryRun);
+      const persistence = await persistSigningSecretDestinations(config.profile, rotateOptions, result, config.dryRun);
+      const envSync = await finishRestartAfterPersistence(rotateOptions, persistence, config.dryRun);
       const endpoint = extractEndpoint(result);
       printResult(
         {
           profile: config.profile,
-          saved: Boolean(rotateOptions.saveSecret),
+          saved: persistence.saved,
           envSync,
           endpoint: maskWebhookSecrets(endpoint, Boolean(rotateOptions.showSecret)),
           result: maskWebhookSecrets(result, Boolean(rotateOptions.showSecret)),
@@ -399,32 +409,58 @@ export function registerWebhookEndpointSubcommands(parent: Command, options: Reg
 
   const ensure = parent
     .command("ensure")
-    .description("Create or update a webhook endpoint by URL with the Secret Key API")
+    .description("Create or merge a webhook endpoint by URL; use --allow-remove-events for explicit replacement")
     .requiredOption("--url <https-url>", "HTTPS webhook endpoint URL")
-    .requiredOption("--events <events>", "Comma-separated event names, core, or all")
+    .requiredOption("--events <events>", "Event names or combinable presets: core, checkout, subscriptions, disputes, payment-methods, commerce, all")
     .option("--description <text>", "Webhook endpoint description")
     .option("--remark <text>", "Alias for --description")
     .option("--save-secret", "Save the resolved signing secret into the current clink profile")
     .option("--show-secret", "Print the full signing secret in command output")
-    .option("--allow-unknown-events", "Send event names without local validation")
+    .option("--allow-unknown-events", "Deprecated; runtime GET /webhook/events validation is always enforced")
+    .option("--allow-remove-events", "Replace the endpoint event set and explicitly allow removal of existing events")
     .option("--disabled", "Create or update the webhook but leave it disabled")
     .option("--return-signing-secret", "Request plaintext signing secret when available")
     .option("--rotate-secret", "Always rotate the signing secret for an existing endpoint")
-    .option("--no-rotate-secret-if-unavailable", "Do not rotate existing endpoints when plaintext secret is unavailable");
+    .option("--no-rotate-secret-if-unavailable", "Do not rotate existing endpoints when plaintext secret is unavailable")
+    .addHelpText("after", ENDPOINT_EVENT_PRESET_HELP);
   addEnvSyncOptions(ensure);
   addLegacyDashboardOptions(ensure, options);
   ensure.action(async function (this: Command, ensureOptions: EnsureOptions) {
     const { config, client } = await getCommandContext(this);
-    const wantsSigningSecret = Boolean(
+    const { catalog } = await loadRuntimeWebhookCatalog(client);
+    const eventSelection = resolveWebhookEventSelection(ensureOptions.events, catalog, {
+      allowUnknownEvents: Boolean(ensureOptions.allowUnknownEvents),
+    });
+    const endpointUrl = parseHttpsEndpoint(ensureOptions.url);
+    const preflight = await findWebhookEndpointByUrl(client, endpointUrl);
+    const existingEvents = preflight.endpoint?.events ?? [];
+    const operation = preflight.endpoint
+      ? ensureOptions.allowRemoveEvents ? "replace" : "merge"
+      : "create";
+    const finalEvents = operation === "replace"
+      ? eventSelection.resolvedEvents
+      : mergeWebhookEvents(existingEvents, eventSelection.resolvedEvents);
+    const eventDiff = diffWebhookEvents(existingEvents, finalEvents);
+    if (eventDiff.removed.length > 0) {
+      printEnsureRemovalPreview(config.outputMode, eventDiff, finalEvents);
+    }
+    await authorizeEventRemoval(eventDiff, operation === "replace");
+
+    const hasSecretDestination = Boolean(
       ensureOptions.saveSecret ||
       ensureOptions.showSecret ||
-      ensureOptions.returnSigningSecret ||
-      ensureOptions.rotateSecret ||
       ensureOptions.syncEnvFile,
     );
+    if ((ensureOptions.returnSigningSecret || ensureOptions.rotateSecret) && !hasSecretDestination) {
+      throw new Error(
+        "Options --return-signing-secret and --rotate-secret require --save-secret, --sync-env-file, or explicit --show-secret so a rotated secret is not discarded.",
+      );
+    }
+    await preflightSigningSecretDestinations(ensureOptions, config.dryRun);
+    const wantsSigningSecret = hasSecretDestination;
     const body = {
-      url: parseHttpsEndpoint(ensureOptions.url),
-      events: parseWebhookEvents(ensureOptions.events, Boolean(ensureOptions.allowUnknownEvents)),
+      url: endpointUrl,
+      events: finalEvents,
       description: getDescription(ensureOptions),
       enabled: !ensureOptions.disabled,
       returnSigningSecret: wantsSigningSecret || undefined,
@@ -435,15 +471,57 @@ export function registerWebhookEndpointSubcommands(parent: Command, options: Reg
       `${WEBHOOK_ENDPOINT_PATH}/ensure`,
       { body },
     );
-    await saveSigningSecretIfRequested(config.profile, result, Boolean(ensureOptions.saveSecret), config.dryRun);
-    const envSync = await syncEnvAndRestartIfRequested(ensureOptions, result, config.dryRun);
     const data = result.data;
     const endpoint = data?.endpoint;
+    const persistence = await persistSigningSecretDestinations(
+      config.profile,
+      ensureOptions,
+      result,
+      config.dryRun,
+    );
+    const envSync = await finishRestartAfterPersistence(ensureOptions, persistence, config.dryRun);
+
+    let verifiedEndpoint: WebhookEndpoint | undefined;
+    const verification = config.dryRun
+      ? { performed: false, status: "skipped-dry-run" }
+      : { performed: true, status: "verified" };
+    if (!config.dryRun) {
+      try {
+        verifiedEndpoint = await readBackWebhookEndpoint(client, endpoint, endpointUrl);
+        assertWebhookEventsMatch(verifiedEndpoint?.events, finalEvents, endpointUrl);
+      } catch (error) {
+        if (ensureOptions.showSecret && persistence.signingSecret) {
+          process.stderr.write(`Signing secret recovery (explicit --show-secret): ${persistence.signingSecret}\n`);
+        }
+        const persistenceNotice = envSync?.restart
+          ? "The returned signing secret was persisted and the requested restart completed before read-back."
+          : envSync?.restartRequired
+            ? "The returned signing secret was persisted before read-back; restart or redeploy the application now."
+            : persistence.saved
+              ? "The returned signing secret was saved to the CLI profile before read-back; synchronize the application runtime if needed."
+              : undefined;
+        throw new Error([
+          error instanceof Error ? error.message : String(error),
+          persistenceNotice,
+        ].filter(Boolean).join(" "));
+      }
+    }
+
     printResult(
       {
         profile: config.profile,
         ignoredMerchantId: ensureOptions.merchantId,
-        saved: Boolean(ensureOptions.saveSecret),
+        operation,
+        eventSelection,
+        requestedEvents: eventSelection.resolvedEvents,
+        finalEvents,
+        eventDiff,
+        allowRemoveEvents: Boolean(ensureOptions.allowRemoveEvents),
+        existingEndpoint: maskWebhookSecrets(preflight.endpoint, false),
+        preflightResult: maskWebhookSecrets(preflight.result, false),
+        verification,
+        verifiedEndpoint: maskWebhookSecrets(verifiedEndpoint, false),
+        saved: persistence.saved,
         envSync,
         source: data?.source,
         signingSecretAvailable: data?.signingSecretAvailable,
@@ -453,13 +531,16 @@ export function registerWebhookEndpointSubcommands(parent: Command, options: Reg
         result: maskWebhookSecrets(result, Boolean(ensureOptions.showSecret)),
       },
       config.outputMode,
-      config.dryRun
-        ? "Webhook endpoint ensure dry-run generated. Use --json to view request metadata."
-        : [
+          [
+            formatEventSelection(eventSelection),
+            formatEnsureEventBehavior(operation),
+            formatEventDiff(eventDiff),
+            config.dryRun ? "Dry run: no endpoint was written and read-back verification was skipped." : undefined,
             `${formatEnsureSource(data?.source)} webhook endpoint: ${endpoint?.url ?? body.url}`,
             `Endpoint ID: ${endpoint?.id ?? "unknown"}`,
             `Events: ${(endpoint?.events ?? body.events).join(", ")}`,
             `Enabled: ${endpoint?.enabled ?? body.enabled}`,
+            config.dryRun ? undefined : "Read-back verification: final event set exactly matches the computed target events.",
             formatSigningSecretLine(endpoint, Boolean(ensureOptions.showSecret)),
             ensureOptions.saveSecret ? `Saved signing secret into profile "${config.profile}".` : "Signing secret was not saved. Re-run with --save-secret to store it.",
             formatEnvSyncLine(envSync),
@@ -503,10 +584,16 @@ async function updateEndpointEnabled(command: Command, endpointId: string, enabl
   );
 }
 
-function buildUpdateBody(options: CommonWriteOptions & { enabled?: string }): Record<string, unknown> {
+function buildUpdateBody(
+  options: CommonWriteOptions & { enabled?: string },
+  resolvedEvents?: string[],
+): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (options.url) body.url = parseHttpsEndpoint(options.url);
-  if (options.events) body.events = parseWebhookEvents(options.events, Boolean(options.allowUnknownEvents));
+  if (options.events) {
+    if (!resolvedEvents) throw new Error("Internal error: webhook events were not resolved from the runtime catalog.");
+    body.events = resolvedEvents;
+  }
   const description = getDescription(options);
   if (description !== undefined) body.description = description;
   const enabled = parseEndpointEnabled(options);
@@ -565,33 +652,163 @@ function isBlockedWebhookHost(hostname: string): boolean {
   return false;
 }
 
-function parseWebhookEvents(value: string | undefined, allowUnknownEvents: boolean): string[] {
-  requireOption("--events", value);
-  const normalized = value.trim().toLowerCase();
-  const events = normalized === "core"
-    ? [...WEBHOOK_CORE_EVENTS]
-    : normalized === "all"
-      ? [...WEBHOOK_ALL_EVENTS]
-      : value
-        .split(",")
-        .map((event) => event.trim())
-        .filter(Boolean);
+async function loadRuntimeWebhookCatalog(client: ClinkApiClient): Promise<{
+  result: WebhookEndpointEnvelope;
+  catalog: WebhookRuntimeCatalog;
+}> {
+  const result = await client.get<WebhookEndpointEnvelope>("/webhook/events", { executeInDryRun: true });
+  return { result, catalog: parseWebhookRuntimeCatalog(result) };
+}
 
-  if (events.length === 0) {
-    throw new Error("Option --events must include at least one event, core, or all.");
+function describeRuntimePresets(catalog: WebhookRuntimeCatalog): Record<string, string[] | { unavailable: string }> {
+  const presets: Record<string, string[] | { unavailable: string }> = {};
+  for (const name of WEBHOOK_PRESET_NAMES) {
+    try {
+      presets[name] = resolveWebhookEventSelection(name, catalog).resolvedEvents;
+    } catch (error) {
+      presets[name] = { unavailable: error instanceof Error ? error.message : String(error) };
+    }
   }
-  const numericEvents = events.filter((event) => /^\d+$/.test(event));
-  if (numericEvents.length > 0) {
-    throw new Error(`Webhook endpoint Secret Key API accepts event names, not numeric event codes: ${numericEvents.join(", ")}`);
-  }
-  if (!allowUnknownEvents) {
-    const unknown = events.filter((event) => !WEBHOOK_SUPPORTED_EVENTS.has(event));
-    if (unknown.length > 0) {
-      throw new Error(`Unknown webhook event(s): ${unknown.join(", ")}. Run clink webhook endpoint events, or pass --allow-unknown-events.`);
+  return presets;
+}
+
+async function findWebhookEndpointByUrl(
+  client: ClinkApiClient,
+  url: string,
+): Promise<{ result: WebhookEndpointListResponse; endpoint?: WebhookEndpoint }> {
+  const result = await client.get<WebhookEndpointListResponse>(WEBHOOK_ENDPOINT_PATH, {
+    query: { pageNum: 1, pageSize: 100, url },
+    executeInDryRun: true,
+  });
+  const endpoint = extractEndpointRows(result).find((candidate) => sameEndpointUrl(candidate.url, url));
+  if (!endpoint || Array.isArray(endpoint.events)) return { result, endpoint };
+
+  if (endpoint.id) {
+    const detailResult = await client.get<WebhookEndpointEnvelope<WebhookEndpoint>>(
+      `${WEBHOOK_ENDPOINT_PATH}/${encodeURIComponent(endpoint.id)}`,
+      { executeInDryRun: true },
+    );
+    const detailed = extractEndpoint(detailResult);
+    if (detailed && Array.isArray(detailed.events)) {
+      return { result, endpoint: detailed };
     }
   }
 
-  return [...new Set(events)];
+  throw new Error(
+    `Existing webhook endpoint at ${url} did not expose its current events; refusing to merge or replace an unknown event set.`,
+  );
+}
+
+export function diffWebhookEvents(existing: string[], resolved: string[]): WebhookEventDiff {
+  const existingSet = new Set(existing);
+  const resolvedSet = new Set(resolved);
+  return {
+    added: resolved.filter((event) => !existingSet.has(event)),
+    removed: existing.filter((event) => !resolvedSet.has(event)),
+    unchanged: resolved.filter((event) => existingSet.has(event)),
+  };
+}
+
+export function mergeWebhookEvents(existing: string[], requested: string[]): string[] {
+  return [...new Set([...existing, ...requested])];
+}
+
+function printEnsureRemovalPreview(
+  mode: "pretty" | "json",
+  diff: WebhookEventDiff,
+  finalEvents: string[],
+): void {
+  if (mode === "json") {
+    process.stderr.write(`${JSON.stringify({
+      kind: "webhook_endpoint_ensure_preview",
+      operation: "replace",
+      eventDiff: diff,
+      finalEvents,
+    })}\n`);
+    return;
+  }
+  process.stderr.write(`Webhook endpoint replacement preview. ${formatEventDiff(diff)} Final events (${finalEvents.length}): ${finalEvents.join(", ")}\n`);
+}
+
+async function authorizeEventRemoval(diff: WebhookEventDiff, allowRemoveEvents: boolean): Promise<void> {
+  if (diff.removed.length === 0) return;
+  if (!allowRemoveEvents) {
+    throw new Error(
+      [
+        "The computed webhook endpoint target would remove existing events.",
+        formatEventDiff(diff),
+        "Use --allow-remove-events to select explicit replacement semantics. No endpoint update was sent.",
+      ].join(" "),
+    );
+  }
+
+  if (!process.stdin.isTTY || !process.stderr.isTTY) return;
+  const prompt = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    const answer = await prompt.question(
+      `Ensure will remove ${diff.removed.length} event(s): ${diff.removed.join(", ")}. Continue? [y/N] `,
+    );
+    if (!/^(?:y|yes)$/i.test(answer.trim())) {
+      throw new Error("Webhook endpoint ensure cancelled; no endpoint update was sent.");
+    }
+  } finally {
+    prompt.close();
+  }
+}
+
+async function readBackWebhookEndpoint(
+  client: ClinkApiClient,
+  endpoint: WebhookEndpoint | undefined,
+  url: string,
+): Promise<WebhookEndpoint> {
+  if (endpoint?.id) {
+    const result = await client.get<WebhookEndpointEnvelope<WebhookEndpoint>>(
+      `${WEBHOOK_ENDPOINT_PATH}/${encodeURIComponent(endpoint.id)}`,
+      { executeInDryRun: true },
+    );
+    const detailed = extractEndpoint(result);
+    if (detailed) return detailed;
+  }
+
+  const fromList = await findWebhookEndpointByUrl(client, url);
+  if (fromList.endpoint) return fromList.endpoint;
+  throw new Error(`Webhook endpoint ensure could not read back the endpoint at ${url}; final event set is unverified.`);
+}
+
+function assertWebhookEventsMatch(actual: string[] | undefined, expected: string[], url: string): void {
+  const actualNormalized = normalizeEventSet(actual ?? []);
+  const expectedNormalized = normalizeEventSet(expected);
+  if (actualNormalized.join("\n") === expectedNormalized.join("\n")) return;
+  throw new Error(
+    [
+      `Webhook endpoint ensure read-back mismatch for ${url}.`,
+      `Expected: ${expectedNormalized.join(", ") || "(none)"}.`,
+      `Actual: ${actualNormalized.join(", ") || "(none)"}.`,
+      "The endpoint update response is not accepted as verified.",
+    ].join(" "),
+  );
+}
+
+function extractEndpointRows(result: unknown): WebhookEndpoint[] {
+  if (isRecord(result) && Array.isArray(result.rows)) return result.rows.filter(isRecord) as WebhookEndpoint[];
+  const data = getEnvelopeData(result);
+  if (Array.isArray(data)) return data.filter(isRecord) as WebhookEndpoint[];
+  if (isRecord(data) && Array.isArray(data.rows)) return data.rows.filter(isRecord) as WebhookEndpoint[];
+  if (isRecord(data) && Array.isArray(data.endpoints)) return data.endpoints.filter(isRecord) as WebhookEndpoint[];
+  return [];
+}
+
+function sameEndpointUrl(left: string | undefined, right: string): boolean {
+  if (!left) return false;
+  try {
+    return new URL(left).toString() === new URL(right).toString();
+  } catch {
+    return left === right;
+  }
+}
+
+function normalizeEventSet(events: string[]): string[] {
+  return [...new Set(events)].sort();
 }
 
 function parseOptionalBoolean(name: string, value: string | undefined): boolean | undefined {
@@ -632,46 +849,101 @@ function extractSigningSecret(result: unknown): string | undefined {
   return typeof endpoint?.signingSecret === "string" && endpoint.signingSecret.length > 0 ? endpoint.signingSecret : undefined;
 }
 
-async function saveSigningSecretIfRequested(profile: string, result: unknown, enabled: boolean, dryRun: boolean): Promise<string | undefined> {
-  if (!enabled) return extractSigningSecret(result);
-  if (dryRun) return undefined;
-  const signingSecret = requireSigningSecret(result);
-
-  await saveProfile(profile, { webhookSigningKey: signingSecret });
-  return signingSecret;
+async function preflightSigningSecretDestinations(
+  options: { saveSecret?: boolean; syncEnvFile?: string; restartCommand?: string },
+  dryRun: boolean,
+): Promise<void> {
+  if (options.restartCommand && !options.syncEnvFile) {
+    throw new Error("Option --restart-command requires --sync-env-file.");
+  }
+  if (dryRun) return;
+  if (options.saveSecret) {
+    await assertAtomicTextFileTarget(getConfigPath());
+  }
+  if (options.syncEnvFile) {
+    await assertAtomicTextFileTarget(options.syncEnvFile);
+  }
 }
 
-async function syncEnvAndRestartIfRequested(
-  options: { syncEnvFile?: string; restartCommand?: string },
+async function persistSigningSecretDestinations(
+  profile: string,
+  options: { saveSecret?: boolean; syncEnvFile?: string; restartCommand?: string },
   result: unknown,
   dryRun: boolean,
-): Promise<EnvSyncResult | undefined> {
-  if (!options.syncEnvFile) return undefined;
+): Promise<SigningSecretPersistence> {
+  const shouldSave = Boolean(options.saveSecret);
+  const shouldSync = Boolean(options.syncEnvFile);
+  if (!shouldSave && !shouldSync) {
+    return { saved: false, signingSecret: extractSigningSecret(result) };
+  }
 
   if (dryRun) {
     return {
-      envFile: options.syncEnvFile,
-      key: WEBHOOK_SIGNING_KEY_ENV,
-      dryRun: true,
-      restartRequired: !options.restartCommand,
-      restart: options.restartCommand ? { command: options.restartCommand, ok: true } : undefined,
+      saved: false,
+      envSync: options.syncEnvFile
+        ? {
+            envFile: options.syncEnvFile,
+            key: WEBHOOK_SIGNING_KEY_ENV,
+            dryRun: true,
+            restartRequired: !options.restartCommand,
+            restart: options.restartCommand
+              ? { command: sanitizeSensitiveText(options.restartCommand), ok: true }
+              : undefined,
+          }
+        : undefined,
     };
   }
 
   const signingSecret = requireSigningSecret(result);
-  await writeEnvFileValue(options.syncEnvFile, WEBHOOK_SIGNING_KEY_ENV, signingSecret);
-  const envSync: EnvSyncResult = {
-    envFile: options.syncEnvFile,
-    key: WEBHOOK_SIGNING_KEY_ENV,
-    written: true,
-    restartRequired: !options.restartCommand,
-  };
-
-  if (options.restartCommand) {
-    envSync.restart = await runRestartCommand(options.restartCommand);
-    envSync.restartRequired = false;
+  let envSnapshot: EnvFileSnapshot | undefined;
+  try {
+    if (options.syncEnvFile) {
+      envSnapshot = await writeEnvFileValue(options.syncEnvFile, WEBHOOK_SIGNING_KEY_ENV, signingSecret);
+    }
+    if (shouldSave) {
+      await saveProfile(profile, { webhookSigningKey: signingSecret });
+    }
+  } catch (error) {
+    if (envSnapshot) {
+      try {
+        await restoreEnvFileSnapshot(envSnapshot);
+      } catch (rollbackError) {
+        throw new Error(
+          `Signing secret persistence failed and env rollback also failed: ${sanitizeErrorMessage(error, signingSecret)}; rollback: ${sanitizeErrorMessage(rollbackError, signingSecret)}`,
+        );
+      }
+    }
+    throw new Error(
+      `Signing secret persistence failed: ${sanitizeErrorMessage(error, signingSecret)} Remote endpoint state may already have changed; fix the local destination, then rotate and resync the endpoint secret before accepting webhooks.`,
+    );
   }
 
+  return {
+    saved: shouldSave,
+    signingSecret,
+    envSync: options.syncEnvFile
+      ? {
+          envFile: options.syncEnvFile,
+          key: WEBHOOK_SIGNING_KEY_ENV,
+          written: true,
+          restartRequired: !options.restartCommand,
+        }
+      : undefined,
+  };
+}
+
+async function finishRestartAfterPersistence(
+  options: { restartCommand?: string },
+  persistence: SigningSecretPersistence,
+  dryRun: boolean,
+): Promise<EnvSyncResult | undefined> {
+  const envSync = persistence.envSync;
+  if (!envSync || dryRun || !options.restartCommand) return envSync;
+  if (!persistence.signingSecret) {
+    throw new Error("Internal error: restart requested without a resolved webhook signing secret.");
+  }
+  envSync.restart = await runRestartCommand(options.restartCommand, persistence.signingSecret);
+  envSync.restartRequired = false;
   return envSync;
 }
 
@@ -691,16 +963,26 @@ function requireSigningSecret(result: unknown): string {
   );
 }
 
-async function writeEnvFileValue(filePath: string, key: string, value: string): Promise<void> {
+async function writeEnvFileValue(filePath: string, key: string, value: string): Promise<EnvFileSnapshot> {
   let raw = "";
+  let existed = true;
   try {
     raw = await readFile(filePath, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    existed = false;
   }
 
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, upsertEnvValue(raw, key, value), "utf8");
+  await writeTextFileAtomically(filePath, upsertEnvValue(raw, key, value));
+  return { filePath, existed, raw };
+}
+
+async function restoreEnvFileSnapshot(snapshot: EnvFileSnapshot): Promise<void> {
+  if (snapshot.existed) {
+    await writeTextFileAtomically(snapshot.filePath, snapshot.raw);
+  } else {
+    await rm(snapshot.filePath, { force: true });
+  }
 }
 
 export function upsertEnvValue(raw: string, key: string, value: string): string {
@@ -717,14 +999,32 @@ function formatEnvValue(value: string): string {
   return /^[A-Za-z0-9_./:=+-]+$/.test(value) ? value : JSON.stringify(value);
 }
 
-async function runRestartCommand(command: string): Promise<NonNullable<EnvSyncResult["restart"]>> {
-  const { stdout, stderr } = await execAsync(command, { windowsHide: true });
-  return {
-    command,
-    ok: true,
-    stdout: truncateCommandOutput(stdout),
-    stderr: truncateCommandOutput(stderr),
-  };
+async function runRestartCommand(command: string, signingSecret: string): Promise<NonNullable<EnvSyncResult["restart"]>> {
+  try {
+    const { stdout, stderr } = await execAsync(command, { windowsHide: true });
+    return {
+      command: sanitizeSensitiveText(command, signingSecret),
+      ok: true,
+      stdout: truncateCommandOutput(sanitizeSensitiveText(stdout, signingSecret)),
+      stderr: truncateCommandOutput(sanitizeSensitiveText(stderr, signingSecret)),
+    };
+  } catch (error) {
+    throw new Error(`Restart command failed: ${sanitizeErrorMessage(error, signingSecret)}`);
+  }
+}
+
+function sanitizeErrorMessage(error: unknown, signingSecret?: string): string {
+  return sanitizeSensitiveText(error instanceof Error ? error.message : String(error), signingSecret);
+}
+
+function sanitizeSensitiveText(value: string, signingSecret?: string): string {
+  let sanitized = value;
+  if (signingSecret) {
+    sanitized = sanitized.split(signingSecret).join("[masked-webhook-secret]");
+  }
+  return sanitized
+    .replace(/\bwhsec_[A-Za-z0-9_-]{8,}\b/g, "[masked-webhook-secret]")
+    .replace(/\bsk_(?:(?:test|live|uat|prod)_)?[A-Za-z0-9_-]{8,}\b/g, "[masked-secret-key]");
 }
 
 function truncateCommandOutput(value: string | undefined): string | undefined {
@@ -763,26 +1063,50 @@ function maskWebhookSecrets(value: unknown, showSecret: boolean): unknown {
   return result;
 }
 
-function formatEventResult(result: unknown): string {
-  const data = getEnvelopeData(result);
-  const events = isRecord(data) && Array.isArray(data.events) ? data.events : [];
-  if (events.length === 0) return formatEventCatalog(WEBHOOK_EVENT_CATALOG);
+function formatEventCatalog(events: ReadonlyArray<{ readonly name: string; readonly code?: number | string; readonly description?: string }>): string {
   return events
-    .map((event) => {
-      if (!isRecord(event)) return String(event);
-      return [event.name, event.code, event.description].filter(Boolean).join("\t");
-    })
+    .map((event) => [event.name, event.code, event.description].filter((value) => value !== undefined).join("\t"))
     .join("\n");
 }
 
-function formatEventCatalog(events: ReadonlyArray<{ readonly name: string; readonly code: number; readonly description: string }>): string {
-  return events
-    .map((event) => [event.name, event.code, event.description].join("\t"))
+function formatPresetCatalog(presets: Record<string, string[] | { unavailable: string }>): string {
+  return Object.entries(presets)
+    .map(([name, value]) => Array.isArray(value)
+      ? `${name}\t${value.length}\t${value.join(", ")}`
+      : `${name}\tunavailable\t${value.unavailable}`)
     .join("\n");
+}
+
+function formatEventSelection(selection: WebhookEventSelection): string {
+  return [
+    `Resolved events (${selection.resolvedEvents.length}): ${selection.resolvedEvents.join(", ")}`,
+    ...Object.entries(selection.presetExpansions).map(
+      ([name, events]) => `Preset ${name} expands to ${events.length}: ${events.join(", ")}`,
+    ),
+    ...selection.warnings.map((warning) => `Warning: ${warning}`),
+  ].join("\n");
+}
+
+function formatEventDiff(diff: WebhookEventDiff): string {
+  return [
+    `Added (${diff.added.length}): ${diff.added.join(", ") || "(none)"}.`,
+    `Removed (${diff.removed.length}): ${diff.removed.join(", ") || "(none)"}.`,
+    `Unchanged (${diff.unchanged.length}): ${diff.unchanged.join(", ") || "(none)"}.`,
+  ].join(" ");
+}
+
+function formatEnsureEventBehavior(operation: "create" | "merge" | "replace"): string {
+  if (operation === "replace") {
+    return "Ensure event behavior: explicit replace (--allow-remove-events authorized removal of events outside the resolved selection).";
+  }
+  if (operation === "merge") {
+    return "Ensure event behavior: safe merge (existing events are preserved and resolved events are added).";
+  }
+  return "Ensure event behavior: create (the new endpoint receives the resolved event set).";
 }
 
 function formatEndpointList(result: WebhookEndpointListResponse): string {
-  const rows = result.rows ?? [];
+  const rows = extractEndpointRows(result);
   if (rows.length === 0) return "No webhook endpoints found.";
   return rows.map((endpoint) => formatEndpointLine(endpoint)).join("\n");
 }

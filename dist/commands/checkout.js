@@ -22,8 +22,8 @@ export function registerCheckout(program) {
         .option("--customer-id <id>", "Existing Clink customer ID")
         .option("--customer-email <email>", "Customer email")
         .option("--reference-customer-id <id>", "Merchant-side customer ID")
-        .requiredOption("--amount <amount>", "Original total amount")
-        .requiredOption("--currency <currency>", "Original currency, for example USD")
+        .requiredOption("--amount <amount>", "Original total amount; required for registered and inline checkout")
+        .requiredOption("--currency <currency>", "Original currency; required for registered and inline checkout, for example USD")
         .option("--name <name>", "Inline one-time product name")
         .option("--unit-amount <amount>", "Inline product unit amount. Defaults to amount / quantity.")
         .option("--quantity <number>", "Inline one-time product quantity", "1")
@@ -77,6 +77,8 @@ function buildCheckoutPayload(options) {
         returnUrl: options.returnUrl,
         paymentMethodType: options.paymentMethodType,
         allowPromotionCodes: Boolean(options.allowPromotionCodes),
+        showPromotionCode: true,
+        localPriceOnly: false,
         promotionCode: options.promotionCode,
     };
     if (mode === "registered") {

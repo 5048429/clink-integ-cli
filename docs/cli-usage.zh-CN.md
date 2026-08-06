@@ -376,13 +376,13 @@ clink webhook endpoint list --json
 
 clink webhook endpoint ensure \
   --url https://your-public-host.example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --json
 
 clink webhook endpoint update whk_xxx \
   --url https://new-public-host.example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --json
 
 clink webhook endpoint enable whk_xxx --json
@@ -397,22 +397,40 @@ Endpoint URL 必须是公网 HTTPS，不能使用 localhost、loopback、private
 
 事件参数说明：
 
-- `--events core`：默认推荐，展开为 `session.complete`、`order.succeeded`、`order.failed`、`refund.succeeded`、`subscription.created`、`invoice.paid`。
-- `--events all`：展开为当前 Secret Key API 支持的完整 44 个事件名。
+- `--events core`：兼容预设，固定展开为 `session.complete`、`order.succeeded`、`order.failed`、`refund.succeeded`、`subscription.created`、`invoice.paid` 这 6 个事件。它不是完整订阅预设，不覆盖完整订阅生命周期、催缴、取消、争议/拒付、`refund.failed` 和 `session.expired`。
+- `--events checkout`：2 个 session、4 个 order、3 个 refund，共 9 个事件。
+- `--events subscriptions`：11 个 subscription 生命周期事件加 3 个 invoice 事件，共 14 个。
+- `--events disputes`：5 个争议生命周期事件。
+- `--events payment-methods`：稳定包含当前公开的 3 个 payment method 事件。
+- `--events commerce`：推荐用于完整收费接入，是 checkout、subscriptions、disputes、payment-methods 的并集；在当前 44 事件 Catalog 中为 31 个。
+- `--events all`：使用运行环境 `GET /webhook/events` 实际返回的全部事件。
+- 支持组合 preset，例如 `--events checkout,subscriptions,disputes,payment-methods`，CLI 会自动去重。
 - 自定义事件列表：使用逗号分隔的事件名，例如 `order.succeeded,invoice.paid`。
+
+CLI 每次解析事件前都会调用运行环境的 `GET /webhook/events`，同时读取 events 和 aliases。preset 所需事件如果不在运行时 Catalog，命令会失败并列出缺失项，不会静默裁剪。
+
+`webhook endpoint ensure` 默认执行**安全 merge**；只有显式传入 `--allow-remove-events` 才执行 replace：
+
+1. 先按 URL 查询现有 endpoint。
+2. 如果列表摘要没有返回现有事件，继续读取 endpoint 详情；详情仍缺失时 fail closed，不发送 PUT。
+3. 默认目标集合为“现有事件 + resolved events”并去重，因此保留已有额外事件。
+4. 使用 `--allow-remove-events` 时，目标集合改为 resolved events；如会删除事件，PUT 前展示 `added`、`removed`、`unchanged` 和最终集合，交互终端还会再次确认。
+5. PUT 完成后重新读取 endpoint，最终事件集合与计算出的 merge/replace 目标不完全一致时退出非 0。
+
+如果较新的运行时 Catalog 公开 `payment_method.deleted`，可显式指定该事件，`all` 也会动态包含它；稳定的 `payment-methods` 和 `commerce` 不会静默扩容。
 
 公开 API 请求体使用事件名，不使用 Dashboard 数字 event code。
 
 ## Webhook Signing Key 与 .env 同步
 
-`--save-secret` 会把返回的 signing secret 保存到当前 CLI profile，供 `clink webhook simulate/sign/verify` 使用。
+`--save-secret` 会把返回的 signing secret 原子保存到当前 CLI profile，供 `clink webhook simulate/sign/verify` 使用。CLI 会在 PUT 前预检 profile/env 目标；后续竞态失败时回滚已经写入的 env，避免“一边更新、一边旧值”的半写状态。`--restart-command` 必须与 `--sync-env-file` 一起使用，并在 endpoint 回读前完成；其 stdout/stderr 在输出前会移除完整 signing secret。
 
 本地项目建议直接同步到 `.env.local`：
 
 ```bash
 clink webhook endpoint ensure \
   --url https://your-public-host.example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --sync-env-file .env.local \
   --json
@@ -423,7 +441,7 @@ clink webhook endpoint ensure \
 ```bash
 clink webhook endpoint ensure \
   --url https://your-public-host.example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --sync-env-file .env.local \
   --restart-command "npm run restart" \
@@ -439,8 +457,61 @@ clink webhook endpoint ensure \
 生成 fixture：
 
 ```bash
+clink webhook fixture invoice.paid --json
 clink webhook fixture invoice.paid --out ./fixtures/invoice-paid.json --json
 ```
+
+不传 `--out` 时，`--json` 会在命令结果中输出生成的 fixture；需要稳定文件时仍可使用 `--out`。
+
+默认 profile 是 `merchant-webhook`：事件 ID 使用 `event_` 前缀，外层 `object` 固定为 `event`，`created` 是 Unix 毫秒整数，完整资源位于对象形式的 `data.object`，Invoice 行项目字段为 `items`。旧摊平格式只能通过 `--fixture-profile legacy` 为兼容旧测试显式生成；该格式已弃用，并会输出 deprecated warning：
+
+Dispute fixture 不包含商户 Webhook 生产链路已过滤的 `channelCode`，`evidenceDeadline` 和 `channelDisputeTime` 使用 Unix 毫秒整数。Payment Method fixture 使用生产枚举值 `type: "CARD"`。
+
+```bash
+clink webhook fixture invoice.paid --fixture-profile legacy --out ./fixtures/invoice-paid-legacy.json --json
+```
+
+Merchant Webhook 与 Agent Customer Callback 是两套不同契约。本版本不会把 subscription 或 invoice 事件解释成摊平的 Agent Callback，也不提供 `agent-callback` fixture profile。
+
+fixture 覆盖稳定 `commerce` preset 的全部 31 个事件：
+
+```text
+session.complete
+session.expired
+order.created
+order.next_action
+order.succeeded
+order.failed
+refund.created
+refund.succeeded
+refund.failed
+subscription.created
+subscription.trialing
+subscription.activated
+subscription.incomplete_expired
+subscription.past_due
+subscription.cancelled
+subscription.updated.plan_changed
+subscription.updated.plan_change_canceled
+subscription.updated.renewed
+subscription.updated.cancel_at_period_end_set
+subscription.updated.cancel_at_period_end_revoked
+invoice.open
+invoice.paid
+invoice.void
+dispute.created
+dispute.updated
+dispute.won
+dispute.lost
+dispute.closed
+payment_method.added
+payment_method.default_change
+payment_method.update
+```
+
+这些 fixture 是用于 handler、路由和签名测试的确定性本地模拟，不能证明 Clink 服务端真实产生过相应事件。
+
+对于 `order.failed`、`refund.succeeded`、`subscription.past_due`、`invoice.void` 和 `dispute.created`，验收测试还使用了从真实 Sandbox 日志提取并完全脱敏的 `data.object` 资源；来源声明、捕获元数据和 SHA-256 记录在测试 manifest 中。这些资源不是完整 raw event body：测试在本地合成 canonical envelope，使用本地测试密钥签名，并通过 localhost HTTP 回放。该方案已获明确批准，作为 v0.2.0 本轮的替代验收；真实 Clink→Endpoint 端到端投递未执行并已被明确豁免，因此不得将该证据表述为“真实端到端 Sandbox UAT PASS”。
 
 签名：
 
@@ -478,7 +549,15 @@ Webhook 签名算法是：
 HMAC_SHA256(CLINK_WEBHOOK_SIGNING_KEY, X-Clink-Timestamp + "." + rawBody)
 ```
 
-Webhook handler 必须保留 raw body、验证签名、幂等处理、容忍重试和乱序事件。订单匹配建议使用 `merchantReferenceId` + `sessionId` 双重匹配。
+Webhook handler 必须先保留 raw body 并完成验签，再执行 `JSON.parse` 和 normalize；不得先改写或重新序列化 body。canonical 载荷直接处理对象形式的 `data.object`。legacy 载荷只在 `data.object` 为字符串时迁移字段、把 ISO `created` 转成毫秒并把 `lineItems` 改为 `items`，同时记录只包含 `event.id` 和 `event.type` 的结构化 warning/metric。无法识别的载荷和未知事件必须返回非 2xx，进入项目的 Inbox/重试策略，不得静默返回 200。
+
+此外仍需幂等处理并容忍重试和乱序事件。订单匹配建议使用 `merchantReferenceId` + `sessionId` 双重匹配。
+
+### OpenAPI 生成类型与 canonical Webhook 类型
+
+`src/openapi/clink.openapi.ts` 由 `npm run openapi:refresh` 根据当前公开 OpenAPI 生成，不得手工修改。它用于跟踪公开 API，并继续为 REST 请求和响应提供类型。
+
+公开 OpenAPI 中部分资源字段可能滞后于生产序列化，例如可空字段、字符串金额、Dispute 过滤字段与时间格式，以及 Payment Instrument 枚举大小写。CLI 对外导出的 Merchant Webhook 类型因此统一使用 `src/webhook/contracts.ts` 中手写维护的 canonical 信封；Invoice、Subscription、Dispute 和 Payment Method 资源也使用其中的生产序列化类型。公共 `ClinkWebhookEvent` 联合类型包含稳定的 `payment_method.added`、`payment_method.default_change`、`payment_method.update`，但不包含 `payment_method.deleted`。其他适用资源可复用生成的 OpenAPI DTO，但生成的事件信封不作为权威 Merchant Webhook 契约。
 
 ## Smoke Test 与真实支付验收
 
@@ -525,7 +604,7 @@ Webhook signing key 应由 `clink webhook endpoint ensure --save-secret` 创建�
 
 ### 什么时候用 `--events all`？
 
-普通支付和订阅接入默认用 `--events core` 或最小必要事件列表。只有确实需要 dispute、payment method、risk rule、agent order/refund 等扩展事件时，才使用 `--events all`。
+完整收费接入默认用 `--events commerce`；它覆盖 checkout、11 个 subscription 生命周期事件、3 个 invoice、dispute 和公开 payment method 事件。`all` 适合确实还需要 risk rule、agent order/refund、purchase instruction 或 VIC device 等 commerce 以外事件的场景。
 
 ### CLI 会自动扫描网站商品吗？
 

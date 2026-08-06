@@ -25,6 +25,7 @@ export interface GlobalOptions {
   env?: ClinkEnvironment;
   baseUrl?: string;
   apiKey?: string;
+  timeoutMs?: string;
   dryRun?: boolean;
 }
 
@@ -38,6 +39,7 @@ export interface RuntimeConfig {
   dashboardEndpoints: DashboardEndpoints;
   webhookSigningKey?: string;
   webhookSigningKeySource?: string;
+  apiTimeoutMs: number;
   dryRun: boolean;
   outputMode: OutputMode;
 }

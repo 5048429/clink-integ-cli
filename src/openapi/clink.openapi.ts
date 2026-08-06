@@ -15,7 +15,10 @@ export interface paths {
         get: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                    "X-Timestamp": components["parameters"]["TimestampHeader"];
+                };
                 path: {
                     /** @description Unique identifier of the refund */
                     id: string;
@@ -71,9 +74,69 @@ export interface paths {
         put?: never;
         /**
          * Create Subscription
-         * @description Create a subscription and initiate its first payment with an existing payment instrument.
+         * @description Create a subscription and initiate its first payment. Provide an existing payment instrument, or omit paymentInstrumentId for payment methods that support automatic payment instrument creation.
          */
         post: operations["createSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subscription/{id}/update/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Subscription Update
+         * @description Preview a subscription upgrade or downgrade before confirming it. The target price must be a recurring price owned by the current merchant and must support the subscription payment currency.
+         */
+        post: operations["previewSubscriptionUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subscription/{id}/update/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Subscription Update
+         * @description Confirm a subscription upgrade or downgrade using the target price snapshot returned by the preview API. Immediate updates may require payment; period-end updates return success when no immediate payment is required.
+         */
+        post: operations["confirmSubscriptionUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subscription/{id}/update/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Subscription Update
+         * @description Cancel a pending subscription plan update that has not taken effect yet.
+         */
+        post: operations["cancelSubscriptionUpdate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -110,7 +173,10 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                    "X-Timestamp": components["parameters"]["TimestampHeader"];
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -248,7 +314,7 @@ export interface paths {
         put?: never;
         /**
          * Create Payment
-         * @description Create a one-time payment with an existing payment instrument. Use either productId and priceId, or amount and currency.
+         * @description Create a one-time payment with an existing payment instrument, or omit paymentInstrumentId for payment methods that support automatic payment instrument creation. Use either productId and priceId, or amount and currency. To charge in a different payment currency, provide paymentCurrency and Clink will apply the available fixed multi-currency price or automatic currency conversion.
          */
         post: operations["createPayment"];
         delete?: never;
@@ -506,7 +572,7 @@ export interface paths {
         };
         /**
          * List Orders
-         * @description List orders under your current merchant account. You can filter orders by subscription ID or customer ID.
+         * @description List orders under your current merchant account. You can filter orders by subscription ID, customer ID, or merchant reference ID.
          */
         get: operations["listOrders"];
         put?: never;
@@ -705,6 +771,158 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/webhook/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Webhook Events
+         * @description Return supported webhook events and event aliases. Use event names in webhook endpoint management requests; numeric event codes are returned for reference only.
+         */
+        get: operations["listWebhookEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook/endpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Webhook Endpoints
+         * @description Get webhook endpoints under the current merchant account.
+         */
+        get: operations["listWebhookEndpoints"];
+        put?: never;
+        /**
+         * Create Webhook Endpoint
+         * @description Create a webhook endpoint for the current merchant. The endpoint URL must use HTTPS and resolve to a public host.
+         */
+        post: operations["createWebhookEndpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook/endpoints/ensure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Ensure Webhook Endpoint
+         * @description Create or update a webhook endpoint by URL. This endpoint is designed for idempotent setup flows where applications need to safely create or reconcile a webhook endpoint. For existing endpoints, Clink does not return the stored plaintext signing secret unless the secret is rotated.
+         */
+        put: operations["ensureWebhookEndpoint"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook/endpoints/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Webhook Endpoint
+         * @description Get a webhook endpoint by ID.
+         */
+        get: operations["getWebhookEndpoint"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Webhook Endpoint
+         * @description Delete a webhook endpoint. Deleted endpoints stop receiving webhook events.
+         */
+        delete: operations["deleteWebhookEndpoint"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Webhook Endpoint
+         * @description Update URL, events, description, or enabled status for a webhook endpoint. Omitted fields remain unchanged.
+         */
+        patch: operations["updateWebhookEndpoint"];
+        trace?: never;
+    };
+    "/webhook/endpoints/{id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable Webhook Endpoint
+         * @description Enable a webhook endpoint.
+         */
+        post: operations["enableWebhookEndpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook/endpoints/{id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable Webhook Endpoint
+         * @description Disable a webhook endpoint. Disabled endpoints are saved but do not receive webhook events.
+         */
+        post: operations["disableWebhookEndpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhook/endpoints/{id}/rotate-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate Webhook Signing Secret
+         * @description Rotate the signing secret for a webhook endpoint. The previous secret stops working immediately.
+         */
+        post: operations["rotateWebhookEndpointSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export interface webhooks {
     order: {
@@ -716,11 +934,28 @@ export interface webhooks {
         };
         get?: never;
         put?: never;
-        /** @description Webhook notification triggered when order is created or updated */
+        /**
+         * @description Handles order lifecycle events.
+         *
+         *     For `order.succeeded`:
+         *
+         *     1. Find the merchant account using `data.object.customerEmail`.
+         *     2. Create a missing account and return `account.created`, or return `account.reloaded` after confirming the successful-payment notification for an existing account.
+         *     3. Map `data.object.amountTotal` to `data.amount` and `data.object.paymentCurrency` to `data.currency`.
+         *
+         *     Handle retries idempotently using the event `id` or `orderId`, and return the original result for duplicate events. Other order events may return an empty HTTP 200 response.
+         */
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Timestamp sent by Clink for webhook signature verification. */
+                    "X-Clink-Timestamp": string;
+                    /** @description Hex-encoded HMAC-SHA256 signature generated with the webhook signing secret over the string `${X-Clink-Timestamp}.${rawRequestBody}`. Use the raw request body bytes/string exactly as received; do not parse and re-serialize the JSON before verifying. */
+                    "X-Clink-Signature": string;
+                    /** @description Signature algorithm used to generate X-Clink-Signature. The current value is SHA256. */
+                    "X-Clink-SignType": "SHA256";
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -731,12 +966,14 @@ export interface webhooks {
                 };
             };
             responses: {
-                /** @description Return a 200 status to indicate that the data was received successfully */
+                /** @description HTTP 200 after successful handling; order.succeeded includes merchant account JSON response; other order event types may return empty HTTP 200 */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["OrderAccountResponseVo"];
+                    };
                 };
             };
         };
@@ -759,7 +996,14 @@ export interface webhooks {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Timestamp sent by Clink for webhook signature verification. */
+                    "X-Clink-Timestamp": string;
+                    /** @description Hex-encoded HMAC-SHA256 signature generated with the webhook signing secret over the string `${X-Clink-Timestamp}.${rawRequestBody}`. Use the raw request body bytes/string exactly as received; do not parse and re-serialize the JSON before verifying. */
+                    "X-Clink-Signature": string;
+                    /** @description Signature algorithm used to generate X-Clink-Signature. The current value is SHA256. */
+                    "X-Clink-SignType": "SHA256";
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -770,59 +1014,61 @@ export interface webhooks {
                      * @example {
                      *       "id": "<string>",
                      *       "object": "event",
-                     *       "created": "<string>",
+                     *       "created": 1750062041000,
                      *       "type": "session.complete",
                      *       "data": {
-                     *         "sessionId": "<string>",
-                     *         "token": "<string>",
-                     *         "status": "<string>",
-                     *         "paymentStatus": "<string>",
-                     *         "amountSubtotal": 0,
-                     *         "amountTotal": 0,
-                     *         "originalCurrency": "<string>",
-                     *         "paymentCurrency": "<string>",
-                     *         "subscriptionId": "<string>",
-                     *         "invoiceId": "<string>",
-                     *         "orderId": "<string>",
-                     *         "price": {
-                     *           "priceId": "<string>",
-                     *           "priceList": [
-                     *             {
-                     *               "amount": 0,
-                     *               "currency": "<string>",
-                     *               "exchangeRate": 0
+                     *         "object": {
+                     *           "sessionId": "<string>",
+                     *           "token": "<string>",
+                     *           "status": "<string>",
+                     *           "paymentStatus": "<string>",
+                     *           "amountSubtotal": 0,
+                     *           "amountTotal": 0,
+                     *           "originalCurrency": "<string>",
+                     *           "paymentCurrency": "<string>",
+                     *           "subscriptionId": "<string>",
+                     *           "invoiceId": "<string>",
+                     *           "orderId": "<string>",
+                     *           "price": {
+                     *             "priceId": "<string>",
+                     *             "priceList": [
+                     *               {
+                     *                 "amount": 0,
+                     *                 "currency": "<string>",
+                     *                 "exchangeRate": 0
+                     *               }
+                     *             ],
+                     *             "recurring": {
+                     *               "freeTrialDays": 0,
+                     *               "interval": "<string>"
                      *             }
-                     *           ],
-                     *           "recurring": {
-                     *             "freeTrialDays": 0,
-                     *             "interval": "<string>"
-                     *           }
-                     *         },
-                     *         "merchantReferenceId": "<string>",
-                     *         "customer": {
-                     *           "customerId": "<string>",
-                     *           "email": "<string>"
-                     *         },
-                     *         "locale": "<string>",
-                     *         "uiMode": "<string>",
-                     *         "returnUrl": "<string>",
-                     *         "cancelUrl": "<string>",
-                     *         "successUrl": "<string>",
-                     *         "created": "<string>",
-                     *         "expire": "<string>",
-                     *         "product": {
-                     *           "productId": "<string>",
-                     *           "productName": "<string>"
-                     *         },
-                     *         "priceDataList": [
-                     *           {
-                     *             "name": "<string>",
-                     *             "quantity": 0,
-                     *             "unitAmount": 0,
-                     *             "currency": "<string>",
-                     *             "imageUrl": "<string>"
-                     *           }
-                     *         ]
+                     *           },
+                     *           "merchantReferenceId": "<string>",
+                     *           "customer": {
+                     *             "customerId": "<string>",
+                     *             "email": "<string>"
+                     *           },
+                     *           "locale": "<string>",
+                     *           "uiMode": "<string>",
+                     *           "returnUrl": "<string>",
+                     *           "cancelUrl": "<string>",
+                     *           "successUrl": "<string>",
+                     *           "created": "<string>",
+                     *           "expire": "<string>",
+                     *           "product": {
+                     *             "productId": "<string>",
+                     *             "productName": "<string>"
+                     *           },
+                     *           "priceDataList": [
+                     *             {
+                     *               "name": "<string>",
+                     *               "quantity": 0,
+                     *               "unitAmount": 0,
+                     *               "currency": "<string>",
+                     *               "imageUrl": "<string>"
+                     *             }
+                     *           ]
+                     *         }
                      *       }
                      *     }
                      */
@@ -858,7 +1104,14 @@ export interface webhooks {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Timestamp sent by Clink for webhook signature verification. */
+                    "X-Clink-Timestamp": string;
+                    /** @description Hex-encoded HMAC-SHA256 signature generated with the webhook signing secret over the string `${X-Clink-Timestamp}.${rawRequestBody}`. Use the raw request body bytes/string exactly as received; do not parse and re-serialize the JSON before verifying. */
+                    "X-Clink-Signature": string;
+                    /** @description Signature algorithm used to generate X-Clink-Signature. The current value is SHA256. */
+                    "X-Clink-SignType": "SHA256";
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -897,7 +1150,14 @@ export interface webhooks {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Timestamp sent by Clink for webhook signature verification. */
+                    "X-Clink-Timestamp": string;
+                    /** @description Hex-encoded HMAC-SHA256 signature generated with the webhook signing secret over the string `${X-Clink-Timestamp}.${rawRequestBody}`. Use the raw request body bytes/string exactly as received; do not parse and re-serialize the JSON before verifying. */
+                    "X-Clink-Signature": string;
+                    /** @description Signature algorithm used to generate X-Clink-Signature. The current value is SHA256. */
+                    "X-Clink-SignType": "SHA256";
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -936,7 +1196,14 @@ export interface webhooks {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Timestamp sent by Clink for webhook signature verification. */
+                    "X-Clink-Timestamp": string;
+                    /** @description Hex-encoded HMAC-SHA256 signature generated with the webhook signing secret over the string `${X-Clink-Timestamp}.${rawRequestBody}`. Use the raw request body bytes/string exactly as received; do not parse and re-serialize the JSON before verifying. */
+                    "X-Clink-Signature": string;
+                    /** @description Signature algorithm used to generate X-Clink-Signature. The current value is SHA256. */
+                    "X-Clink-SignType": "SHA256";
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -975,7 +1242,14 @@ export interface webhooks {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Timestamp sent by Clink for webhook signature verification. */
+                    "X-Clink-Timestamp": string;
+                    /** @description Hex-encoded HMAC-SHA256 signature generated with the webhook signing secret over the string `${X-Clink-Timestamp}.${rawRequestBody}`. Use the raw request body bytes/string exactly as received; do not parse and re-serialize the JSON before verifying. */
+                    "X-Clink-Signature": string;
+                    /** @description Signature algorithm used to generate X-Clink-Signature. The current value is SHA256. */
+                    "X-Clink-SignType": "SHA256";
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -1014,7 +1288,14 @@ export interface webhooks {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header: {
+                    /** @description Timestamp sent by Clink for webhook signature verification. */
+                    "X-Clink-Timestamp": string;
+                    /** @description Hex-encoded HMAC-SHA256 signature generated with the webhook signing secret over the string `${X-Clink-Timestamp}.${rawRequestBody}`. Use the raw request body bytes/string exactly as received; do not parse and re-serialize the JSON before verifying. */
+                    "X-Clink-Signature": string;
+                    /** @description Signature algorithm used to generate X-Clink-Signature. The current value is SHA256. */
+                    "X-Clink-SignType": "SHA256";
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -1043,14 +1324,25 @@ export interface webhooks {
 }
 export interface components {
     schemas: {
-        /** @description Parameters required to initialize a new checkout session. Provide at least one of customerId, customerEmail, or referenceCustomerId. If all three are empty, the request fails with CUSTOMER_NOT_FOUND. When customerId is provided, it is the primary identifier and customerEmail/referenceCustomerId must match the same customer. Without customerId, Clink resolves the customer by customerEmail and/or referenceCustomerId; when both are provided, they must resolve to the same customer or the request fails with CUSTOMER_IDENTIFIER_NOT_MATCHED. */
+        /** @description Identifies an existing customer at a merchant-owned hosted Stripe channel so Clink can resolve or create the Clink customer and import that customer's historical payment instruments. */
+        HistoricalPaymentInstrumentImport: {
+            /** @description Alias of the merchant-owned hosted Stripe channel, for example mcht_xxx-stripe-m1 */
+            channelAlias: string;
+            /** @description Stripe customer identifier assigned by the channel, for example cus_xxx */
+            channelCustomerReference: string;
+            /** @description Optional payment method types to import from the Stripe customer. If omitted or empty, Clink uses the server-side payment method set allowed for the merchant and channel. Supported values are CARD and CASHAPP. CASHAPP takes effect only when enabled for both the merchant and the channel; otherwise it is filtered out without failing the request. */
+            paymentMethodTypes?: ("CARD" | "CASHAPP")[];
+        };
+        /** @description Parameters required to initialize a new checkout session. Provide at least one of customerId, customerEmail, referenceCustomerId, or a complete historicalPaymentInstrumentImport object. If none is provided, the request fails with CUSTOMER_NOT_FOUND. A complete historicalPaymentInstrumentImport object can be used by itself to resolve or create the customer. When customerId is provided, it is the primary identifier and customerEmail/referenceCustomerId must match the same customer. Without customerId, Clink resolves the customer by customerEmail and/or referenceCustomerId; when both are provided, they must resolve to the same customer or the request fails with CUSTOMER_IDENTIFIER_NOT_MATCHED. */
         SessionCreateReq: {
-            /** @description Existing customer's unique identifier. At least one of customerId, customerEmail, or referenceCustomerId is required. When provided, customerId is the primary identifier and customerEmail/referenceCustomerId must match the same customer */
+            /** @description Existing customer's unique identifier. At least one of customerId, customerEmail, referenceCustomerId, or a complete historicalPaymentInstrumentImport object is required. When provided, customerId is the primary identifier and customerEmail/referenceCustomerId must match the same customer */
             customerId?: string;
-            /** @description Customer's email address. At least one of customerId, customerEmail, or referenceCustomerId is required. When customerId is not provided, Clink uses customerEmail and/or referenceCustomerId to resolve the customer. A new customer may be created when no existing customer matches */
+            /** @description Customer's email address. At least one of customerId, customerEmail, referenceCustomerId, or a complete historicalPaymentInstrumentImport object is required. When customerId is not provided, Clink uses customerEmail and/or referenceCustomerId to resolve the customer. A new customer may be created when no existing customer matches */
             customerEmail?: string;
-            /** @description Merchant-side customer ID used to locate, validate, create, or bind a customer. At least one of customerId, customerEmail, or referenceCustomerId is required. If all three are empty, the request fails with CUSTOMER_NOT_FOUND */
+            /** @description Merchant-side customer ID used to locate, validate, create, or bind a customer. At least one of customerId, customerEmail, referenceCustomerId, or a complete historicalPaymentInstrumentImport object is required. If none is provided, the request fails with CUSTOMER_NOT_FOUND */
             referenceCustomerId?: string;
+            /** @description Optional customer information associated with a merchant's existing payment channel. Currently, only Stripe is supported. It is used to resolve or create the corresponding customer record and migrate historical payment instruments from supported payment providers. This object may be used as the only customer identifier. When provided, both channelAlias and channelCustomerReference are required. */
+            historicalPaymentInstrumentImport?: components["schemas"]["HistoricalPaymentInstrumentImport"];
             /** @description Total transaction amount in the specified currency (must be greater than 0) */
             originalAmount: number;
             /** @description Three-letter ISO currency code for the transaction (e.g., USD, EUR, GBP) */
@@ -1084,12 +1376,12 @@ export interface components {
             /**
              * @description Controls whether the QR code payment flow is launched directly when opening checkout.
              *
-             *     Currently only supports `CASHAPP`.
+             *     Currently supports `CASHAPP` and `QRIS`.
              *
              *     This parameter takes effect only when:
              *
-             *     - `paymentMethodType` is set to `CASHAPP`
-             *     - `CASHAPP` is available in the checkout session
+             *     - `paymentMethodType` is set to the same value as `directPaymentQrCodePaymentMethodType`
+             *     - The selected payment method is available in the checkout session
              *
              *     Behavior:
              *
@@ -1098,21 +1390,36 @@ export interface components {
              *
              *     Ignored when:
              *
-             *     - `CASHAPP` is not available in checkout
-             *     - `paymentMethodType` is not `CASHAPP`
+             *     - The selected payment method is not available in checkout
+             *     - `paymentMethodType` does not match `directPaymentQrCodePaymentMethodType`
              *
              *     Allowed values:
              *
              *     - `CASHAPP`
+             *     - `QRIS`
              * @enum {string}
              */
-            directPaymentQrCodePaymentMethodType?: "CASHAPP";
+            directPaymentQrCodePaymentMethodType?: "CASHAPP" | "QRIS";
             /** @description List of product pricing details for one-time purchases. Use this when creating transactions without pre-configured products */
             priceDataList?: components["schemas"]["PriceData"][];
             /** @description Set to true to enable customers to enter promotion codes during checkout */
             allowPromotionCodes?: boolean;
-            /** @description Pre-filled promotion code for the checkout session. Only effective when allowPromotionCodes is set to true */
+            /**
+             * @description Controls whether the promotion code input is shown in checkout. Defaults to true. Set to false with allowPromotionCodes=true and promotionCode to apply a hidden promotion code without showing the input box.
+             * @default true
+             */
+            showPromotionCode: boolean;
+            /**
+             * @description One-time payments only. Controls whether checkout prioritizes price options that match the customer's local currencies resolved from the checkout access IP. Defaults to false. When true, checkout shows local price options for one-time payments; if no local price option can be shown, Clink falls back to the original pricing currency when it is available. This setting does not apply to subscription checkout sessions.
+             * @default false
+             */
+            localPriceOnly: boolean;
+            /** @description Pre-filled promotion code for the checkout session. Only effective when allowPromotionCodes is set to true. Required when showPromotionCode is false */
             promotionCode?: string;
+            /** @description Merchant metadata. Values must be strings. Maximum 20 keys. Key length must be 40 characters or fewer and string value length must be 500 characters or fewer. */
+            metadata?: {
+                [key: string]: string;
+            };
         } & unknown;
         /** @description Response object returned when creating a new checkout session */
         SessionCreateRes: {
@@ -1379,6 +1686,16 @@ export interface components {
              */
             status?: "success" | "failed" | "requires_action" | "pending" | "partial_refunded" | "refunded";
             /**
+             * @description Standardized failure code for a failed order. Returned only when the order is failed and Clink can resolve a standardized failure reason.
+             * @example card_declined
+             */
+            failureCode?: string;
+            /**
+             * @description Standardized failure message for a failed order. Returned only when the order is failed and Clink can resolve a standardized failure reason.
+             * @example The card was declined
+             */
+            failureMessage?: string;
+            /**
              * Format: int64
              * @description Unix timestamp when the order payment reached a final success or failed state
              * @example 1754819711382
@@ -1411,6 +1728,34 @@ export interface components {
             paymentMethodType?: string;
             /** @description Unique identifier of the specific payment instrument */
             paymentInstrumentId?: string;
+            /**
+             * @description Card brand or scheme, such as Visa or Mastercard
+             * @example Visa
+             */
+            cardScheme?: string;
+            /**
+             * @description Last four digits of the card
+             * @example 4242
+             */
+            cardLastFour?: string;
+            /**
+             * @description Card issuing country or region
+             * @example US
+             */
+            issuerRegion?: string;
+            /**
+             * @description Card issuing bank
+             * @example Chase Bank
+             */
+            issuerBank?: string;
+            /** @description Wallet account information for wallet-based payment methods */
+            wallet?: {
+                /**
+                 * @description Bound wallet account tag or reference
+                 * @example s*****@personal.example.com
+                 */
+                accountTag?: string;
+            };
         };
         RefundGetRes: {
             /**
@@ -1439,6 +1784,11 @@ export interface components {
              */
             refundId?: string;
             /**
+             * @description Merchant-provided unique refund order ID. Returned for API-created refunds and refund webhook payloads.
+             * @example refund_ref_10001
+             */
+            refundMerchantOrderId?: string;
+            /**
              * @description Unique identifier of the original order being refunded
              * @example order_def456uvw
              */
@@ -1464,6 +1814,16 @@ export interface components {
              * @enum {string}
              */
             status?: "created" | "success" | "failed" | "closed" | "received" | "refunding";
+            /**
+             * @description Standardized failure code for a failed refund. Returned only when the refund failed and Clink can resolve a standardized failure reason.
+             * @example already_refunded
+             */
+            failureCode?: string;
+            /**
+             * @description Standardized failure message for a failed refund. Returned only when the refund failed. If no standardized failure code is available, Clink may return the original channel failure message.
+             * @example This payment has already been fully refunded. Check order status in your account's transaction history.
+             */
+            failureMessage?: string;
             /**
              * @description Explanation for why the refund was issued
              * @example Customer Initiated Refund
@@ -1544,7 +1904,7 @@ export interface components {
             trialEnd?: number;
             /**
              * Format: int64
-             * @description Unix timestamp for the start of the current billing period
+             * @description Unix timestamp in milliseconds when the subscription started. This value is set once and does not change. To determine the current billing period, use recurringInvoiceItem.periodStart and recurringInvoiceItem.periodEnd.
              * @example 1754819706689
              */
             currentPeriodStart?: number;
@@ -1583,7 +1943,7 @@ export interface components {
              * @enum {string}
              */
             currency?: "USD" | "EUR" | "JPY" | "GBP" | "AUD" | "CAD" | "CNY" | "HKD" | "SGD" | "KRW" | "AED" | "THB" | "IDR" | "PHP" | "MYR" | "BRL" | "INR";
-            /** @description Current recurring price and billing cycle information for the active subscription. */
+            /** @description Current recurring price and billing cycle information for the active subscription. Use periodStart and periodEnd to determine the current billing period. */
             recurringInvoiceItem?: components["schemas"]["InvoiceItem"];
             /** @description Preview of the next billing cycle's invoice item. Only available when a subscription is pending activation or scheduled for a plan change in the next billing cycle. */
             upcomingInvoiceItem?: components["schemas"]["InvoiceItem"];
@@ -1757,6 +2117,14 @@ export interface components {
             customerId: string;
             /** @description Redirect URL when customer click on 'Return to Merchant' */
             returnUrl?: string;
+            /**
+             * @description Product IDs allowed for subscription upgrades or downgrades in this customer portal session. When omitted or empty, this session does not restrict eligible products. Blank or invalid product IDs are rejected.
+             * @example [
+             *       "prd_001",
+             *       "prd_002"
+             *     ]
+             */
+            subscriptionUpdateProductIds?: string[];
         };
         /** @description Response object returned when creating a new checkout session */
         CustomerPortalCreateRes: {
@@ -1787,63 +2155,69 @@ export interface components {
              */
             expiresAt?: number;
         };
+        SessionEventDataVo: {
+            /** @description Session payload object */
+            object?: components["schemas"]["SessionApiVo"];
+        };
         /**
          * @example {
          *       "id": "<string>",
          *       "object": "event",
-         *       "created": "<string>",
+         *       "created": 1750062041000,
          *       "type": "session.complete",
          *       "data": {
-         *         "sessionId": "<string>",
-         *         "token": "<string>",
-         *         "status": "<string>",
-         *         "paymentStatus": "<string>",
-         *         "amountSubtotal": 0,
-         *         "amountTotal": 0,
-         *         "originalCurrency": "<string>",
-         *         "paymentCurrency": "<string>",
-         *         "subscriptionId": "<string>",
-         *         "invoiceId": "<string>",
-         *         "orderId": "<string>",
-         *         "price": {
-         *           "priceId": "<string>",
-         *           "priceList": [
-         *             {
-         *               "amount": 0,
-         *               "currency": "<string>",
-         *               "exchangeRate": 0
+         *         "object": {
+         *           "sessionId": "<string>",
+         *           "token": "<string>",
+         *           "status": "<string>",
+         *           "paymentStatus": "<string>",
+         *           "amountSubtotal": 0,
+         *           "amountTotal": 0,
+         *           "originalCurrency": "<string>",
+         *           "paymentCurrency": "<string>",
+         *           "subscriptionId": "<string>",
+         *           "invoiceId": "<string>",
+         *           "orderId": "<string>",
+         *           "price": {
+         *             "priceId": "<string>",
+         *             "priceList": [
+         *               {
+         *                 "amount": 0,
+         *                 "currency": "<string>",
+         *                 "exchangeRate": 0
+         *               }
+         *             ],
+         *             "recurring": {
+         *               "freeTrialDays": 0,
+         *               "interval": "<string>"
          *             }
-         *           ],
-         *           "recurring": {
-         *             "freeTrialDays": 0,
-         *             "interval": "<string>"
-         *           }
-         *         },
-         *         "merchantReferenceId": "<string>",
-         *         "customer": {
-         *           "customerId": "<string>",
-         *           "email": "<string>"
-         *         },
-         *         "locale": "<string>",
-         *         "uiMode": "<string>",
-         *         "returnUrl": "<string>",
-         *         "cancelUrl": "<string>",
-         *         "successUrl": "<string>",
-         *         "created": "<string>",
-         *         "expire": "<string>",
-         *         "product": {
-         *           "productId": "<string>",
-         *           "productName": "<string>"
-         *         },
-         *         "priceDataList": [
-         *           {
-         *             "name": "<string>",
-         *             "quantity": 0,
-         *             "unitAmount": 0,
-         *             "currency": "<string>",
-         *             "imageUrl": "<string>"
-         *           }
-         *         ]
+         *           },
+         *           "merchantReferenceId": "<string>",
+         *           "customer": {
+         *             "customerId": "<string>",
+         *             "email": "<string>"
+         *           },
+         *           "locale": "<string>",
+         *           "uiMode": "<string>",
+         *           "returnUrl": "<string>",
+         *           "cancelUrl": "<string>",
+         *           "successUrl": "<string>",
+         *           "created": "<string>",
+         *           "expire": "<string>",
+         *           "product": {
+         *             "productId": "<string>",
+         *             "productName": "<string>"
+         *           },
+         *           "priceDataList": [
+         *             {
+         *               "name": "<string>",
+         *               "quantity": 0,
+         *               "unitAmount": 0,
+         *               "currency": "<string>",
+         *               "imageUrl": "<string>"
+         *             }
+         *           ]
+         *         }
          *       }
          *     }
          */
@@ -1862,11 +2236,57 @@ export interface components {
              */
             object?: string;
             /**
-             * Format: date-time
-             * @description Timestamp when the event occurred
+             * Format: int64
+             * @description Unix timestamp in milliseconds when the event occurred
              */
-            created?: string;
-            data?: components["schemas"]["SessionApiVo"];
+            created?: number;
+            data?: components["schemas"]["SessionEventDataVo"];
+        };
+        OrderEventDataVo: {
+            /** @description Order payload object */
+            object?: components["schemas"]["OrderApiVo"];
+        };
+        OrderAccountResponseDataVo: {
+            /**
+             * Format: email
+             * @description Email address that must match the incoming `data.object.customerEmail`.
+             * @example customer@example.com
+             */
+            customerEmail: string;
+            /**
+             * Format: uri
+             * @description Absolute merchant website URL, including the `http` or `https` scheme.
+             * @example https://example.com
+             */
+            webSite: string;
+            /**
+             * @description User ID in the merchant system; this is not the Clink `customerId`.
+             * @example usr_xxxxx
+             */
+            userId: string;
+            /**
+             * @description Value copied from the incoming `data.object.amountTotal`.
+             * @example 19.99
+             */
+            amount: number;
+            /**
+             * @description Value copied from the incoming `data.object.paymentCurrency`.
+             * @example USD
+             */
+            currency: string;
+        };
+        OrderAccountResponseVo: {
+            /**
+             * @example event
+             * @enum {string}
+             */
+            object: "event";
+            /**
+             * @description Merchant account response type. `account.created` indicates that a new merchant account was created successfully. `account.reloaded` indicates that an existing merchant account matched and the merchant confirms that it received the successful-payment notification.
+             * @enum {string}
+             */
+            type: "account.created" | "account.reloaded";
+            data: components["schemas"]["OrderAccountResponseDataVo"];
         };
         EventOrderVo: {
             /** @description Unique identifier for the event */
@@ -1882,11 +2302,15 @@ export interface components {
              */
             object?: string;
             /**
-             * Format: date-time
-             * @description Timestamp when the event occurred
+             * Format: int64
+             * @description Unix timestamp in milliseconds when the event occurred
              */
-            created?: string;
-            data?: components["schemas"]["OrderApiVo"];
+            created?: number;
+            data?: components["schemas"]["OrderEventDataVo"];
+        };
+        RefundEventDataVo: {
+            /** @description Refund payload object */
+            object?: components["schemas"]["RefundApiVo"];
         };
         EventRefundVo: {
             /** @description Unique identifier for the event */
@@ -1902,11 +2326,15 @@ export interface components {
              */
             object?: string;
             /**
-             * Format: date-time
-             * @description Timestamp when the event occurred
+             * Format: int64
+             * @description Unix timestamp in milliseconds when the event occurred
              */
-            created?: string;
-            data?: components["schemas"]["RefundApiVo"];
+            created?: number;
+            data?: components["schemas"]["RefundEventDataVo"];
+        };
+        SubscriptionEventDataVo: {
+            /** @description Subscription payload object */
+            object?: components["schemas"]["SubApiVo"];
         };
         EventSubVo: {
             /** @description Unique identifier for the event */
@@ -1923,11 +2351,15 @@ export interface components {
              */
             object?: string;
             /**
-             * Format: date-time
-             * @description Timestamp when the event occurred
+             * Format: int64
+             * @description Unix timestamp in milliseconds when the event occurred
              */
-            created?: string;
-            data?: components["schemas"]["SubApiVo"];
+            created?: number;
+            data?: components["schemas"]["SubscriptionEventDataVo"];
+        };
+        InvoiceEventDataVo: {
+            /** @description Invoice payload object */
+            object?: components["schemas"]["InvoiceApiVo"];
         };
         EventInvoiceVo: {
             /** @description Unique identifier for the event */
@@ -1944,11 +2376,11 @@ export interface components {
              */
             object?: string;
             /**
-             * Format: date-time
-             * @description Timestamp when the event occurred
+             * Format: int64
+             * @description Unix timestamp in milliseconds when the event occurred
              */
-            created?: string;
-            data?: components["schemas"]["InvoiceApiVo"];
+            created?: number;
+            data?: components["schemas"]["InvoiceEventDataVo"];
         };
         EventCustomerVerifyVo: {
             /** @description Unique identifier for the event */
@@ -1965,10 +2397,10 @@ export interface components {
              */
             object?: string;
             /**
-             * Format: date-time
-             * @description Timestamp when the event occurred
+             * Format: int64
+             * @description Unix timestamp in milliseconds when the event occurred
              */
-            created?: string;
+            created?: number;
             data?: components["schemas"]["CustomerVerifyDataVo"];
         };
         CustomerVerifyDataVo: {
@@ -1987,12 +2419,13 @@ export interface components {
          *       "id": "<string>",
          *       "type": "dispute.created",
          *       "object": "event",
-         *       "created": "<string>",
+         *       "created": 1750062041000,
          *       "data": {
          *         "object": {
          *           "chargeBackId": "<string>",
          *           "channelCode": "<string>",
          *           "orderId": "<string>",
+         *           "merchantReferenceId": "pay_ref_123",
          *           "merchantId": "<string>",
          *           "customerId": "<string>",
          *           "disputeAmount": 0,
@@ -2024,10 +2457,10 @@ export interface components {
              */
             object?: string;
             /**
-             * Format: date-time
-             * @description Timestamp when the event occurred
+             * Format: int64
+             * @description Unix timestamp in milliseconds when the event occurred
              */
-            created?: string;
+            created?: number;
             data?: components["schemas"]["DisputeDataVo"];
         };
         DisputeDataVo: {
@@ -2041,6 +2474,8 @@ export interface components {
             channelCode?: string;
             /** @description Order ID associated with this dispute */
             orderId?: string;
+            /** @description Merchant-side reference ID of the order associated with this dispute */
+            merchantReferenceId?: string;
             /** @description Merchant ID */
             merchantId?: string;
             /** @description Customer ID */
@@ -2321,6 +2756,204 @@ export interface components {
              * @default false
              */
             cancelImmediately: boolean;
+        };
+        /** @description Parameters required to preview a subscription upgrade or downgrade. */
+        SubscriptionUpdatePreviewApiRequest: {
+            /** @description Target recurring price ID. The price must belong to the current merchant and support the subscription payment currency. */
+            priceId: string;
+            /** @description Promotion code to apply to the updated subscription. */
+            promotionCode?: string;
+        };
+        /** @description Parameters required to confirm a subscription upgrade or downgrade. */
+        SubscriptionUpdateConfirmApiRequest: {
+            /** @description Target price snapshot ID returned by the preview API. */
+            priceSnapshotId: string;
+            /** @description Promotion code to apply to the updated subscription. */
+            promotionCode?: string;
+        };
+        /** @description Preview result for a subscription upgrade or downgrade. */
+        SubscriptionUpdatePreviewApiVo: {
+            /** @description Unique identifier of the subscription */
+            subscriptionId?: string;
+            /** @description Whether the update takes effect immediately. false means the update is scheduled for the next billing period boundary. */
+            immediate?: boolean;
+            /** @description Target recurring price after the update. */
+            recurringPrice?: components["schemas"]["SubscriptionUpdateRecurringPriceApiVo"];
+            /** @description Billing preview for the update. */
+            lines?: components["schemas"]["SubscriptionUpdateLineDataApiVo"];
+            /** @description Discount applied to the update, if any. */
+            discountObject?: components["schemas"]["SubscriptionUpdateDiscountApiVo"];
+        };
+        /** @description Target recurring price details for a subscription update. */
+        SubscriptionUpdateRecurringPriceApiVo: {
+            /**
+             * Format: int64
+             * @description Unix timestamp in milliseconds when the target recurring period starts.
+             */
+            periodStart?: number;
+            /**
+             * Format: int64
+             * @description Unix timestamp in milliseconds when the target recurring period ends.
+             */
+            periodEnd?: number;
+            /** @description Target recurring price ID. */
+            priceId?: string;
+            /** @description Target recurring price snapshot ID used when confirming the update. */
+            priceSnapshotId?: string;
+            /** @description Target product ID. */
+            productId?: string;
+            /** @description Target product name. */
+            productName?: string;
+            /** @description Total recurring amount for the target price and quantity. */
+            totalAmount?: number;
+            /** @description Unit amount for the target price. */
+            unitAmount?: number;
+            /** @description Display symbol for the currency. */
+            currencySymbol?: string;
+            /**
+             * @description Currency used by the subscription update.
+             * @enum {string}
+             */
+            currency?: "USD" | "EUR" | "JPY" | "GBP" | "AUD" | "CAD" | "CNY" | "HKD" | "SGD" | "KRW" | "AED" | "THB" | "IDR" | "PHP" | "MYR" | "BRL" | "INR";
+            /**
+             * Format: int32
+             * @description Target quantity.
+             */
+            quantity?: number;
+            /**
+             * @description Billing interval for the target recurring price.
+             * @enum {string}
+             */
+            interval?: "day" | "week" | "month" | "year" | "quarter" | "half_year" | "custom";
+            /** @description Raw recurring configuration snapshot for the target price. */
+            recurring?: string;
+        };
+        /** @description Billing line preview for a subscription update. */
+        SubscriptionUpdateLineDataApiVo: {
+            /** @description Credit for unused time on the current plan. Present for immediate updates when applicable. */
+            proratedCredit?: components["schemas"]["SubscriptionUpdateLineDataPriceApiVo"];
+            /** @description Charge for remaining time on the target plan. Present for immediate updates when applicable. */
+            proratedCharge?: components["schemas"]["SubscriptionUpdateLineDataPriceApiVo"];
+            /**
+             * Format: int64
+             * @description Unix timestamp in milliseconds when the billed period starts.
+             */
+            periodStart?: number;
+            /**
+             * Format: int64
+             * @description Unix timestamp in milliseconds when the billed period ends.
+             */
+            periodEnd?: number;
+            /** @description Subtotal amount before tax. */
+            subtotalAmount?: number;
+            /** @description Tax amount for the update. */
+            taxAmount?: number;
+            /** @description Tax rate applied to the update. */
+            taxRate?: number;
+            /** @description Tax name applied to the update. */
+            taxName?: string;
+            /** @description Total amount after tax. */
+            totalAmount?: number;
+            /** @description Display symbol for the currency. */
+            currencySymbol?: string;
+            /**
+             * @description Currency used by the subscription update.
+             * @enum {string}
+             */
+            currency?: "USD" | "EUR" | "JPY" | "GBP" | "AUD" | "CAD" | "CNY" | "HKD" | "SGD" | "KRW" | "AED" | "THB" | "IDR" | "PHP" | "MYR" | "BRL" | "INR";
+        };
+        /** @description Proration line amount for a subscription update. */
+        SubscriptionUpdateLineDataPriceApiVo: {
+            /** @description Product name for this line. */
+            productName?: string;
+            /** @description Total amount for this line. */
+            totalAmount?: number;
+            /** @description Display symbol for the currency. */
+            currencySymbol?: string;
+            /**
+             * @description Currency used by this line.
+             * @enum {string}
+             */
+            currency?: "USD" | "EUR" | "JPY" | "GBP" | "AUD" | "CAD" | "CNY" | "HKD" | "SGD" | "KRW" | "AED" | "THB" | "IDR" | "PHP" | "MYR" | "BRL" | "INR";
+            /**
+             * Format: int32
+             * @description Quantity for this line.
+             */
+            quantity?: number;
+        };
+        /** @description Discount applied to a subscription update. */
+        SubscriptionUpdateDiscountApiVo: {
+            /** @description Coupon ID. */
+            couponId?: string;
+            /** @description Coupon name. */
+            couponName?: string;
+            /** @description Human-readable coupon terms. */
+            couponTerms?: string;
+            /** @description Promotion code applied to the update. */
+            promotionCode?: string;
+            /** @description Discount amount applied to the update. */
+            discountAmount?: number;
+            /** @description Discount duration type. */
+            durationType?: string;
+            /**
+             * Format: int32
+             * @description Number of months the discount applies, when applicable.
+             */
+            durationMonths?: number;
+            /**
+             * Format: int32
+             * @description Number of times the coupon has already been used.
+             */
+            couponUsedTimes?: number;
+        };
+        /** @description Result returned after confirming a subscription update. */
+        SubscriptionUpdateConfirmApiVo: {
+            /** @description Unique identifier of the subscription. */
+            subscriptionId?: string;
+            /**
+             * Format: int32
+             * @description Payment result status. `1` means success, `2` means pending, `3` means failure, and `5` means need next action to complete payment.
+             * @enum {integer}
+             */
+            status?: 1 | 2 | 3 | 5;
+            /** @description Payment channel response code. */
+            code?: string;
+            /** @description Payment declined code, when available. */
+            declinedCode?: string;
+            /** @description Payment result message. */
+            message?: string;
+            /** @description Next action required to complete payment when status is `5` (NEXT_ACTION). */
+            action?: components["schemas"]["Action"];
+            /** @description Subscription details after the update is confirmed. */
+            subscription?: components["schemas"]["SubscriptionApiData"];
+        };
+        SubscriptionUpdatePreviewApiResponse: {
+            /**
+             * Format: int32
+             * @description Response status code, 200 when success
+             * @example 200
+             */
+            code?: number;
+            /**
+             * @description Brief description of what happened, 'success' when happy case
+             * @example success
+             */
+            msg?: string;
+            data?: components["schemas"]["SubscriptionUpdatePreviewApiVo"];
+        };
+        SubscriptionUpdateConfirmApiResponse: {
+            /**
+             * Format: int32
+             * @description Response status code, 200 when success
+             * @example 200
+             */
+            code?: number;
+            /**
+             * @description Brief description of what happened, 'success' when happy case
+             * @example success
+             */
+            msg?: string;
+            data?: components["schemas"]["SubscriptionUpdateConfirmApiVo"];
         };
         DiscountObjectVo: {
             couponId?: string;
@@ -2661,13 +3294,13 @@ export interface components {
             priceId: string;
             /** @description Product ID for the subscription. */
             productId: string;
-            /** @description Existing payment instrument ID used for the initial payment and renewals. */
-            paymentInstrumentId: string;
+            /** @description Existing payment instrument ID used for the initial payment and renewals. Required for payment methods that do not support automatic payment instrument creation. CARD requires a previously saved card and its paymentInstrumentId. Can be omitted for CASHAPP, GCASH. */
+            paymentInstrumentId?: string;
             /**
-             * @description Payment method type. Supported values are uppercase.
+             * @description Payment method type. Supported values are uppercase. CARD (requires a previously saved card and its paymentInstrumentId).
              * @enum {string}
              */
-            paymentMethodType: "CARD" | "GCASH";
+            paymentMethodType: "CARD" | "GCASH" | "CASHAPP" | "UPI" | "PIX";
             /** @description Payment currency. The value is normalized to uppercase. */
             paymentCurrency: string;
             /** @description Promotion code to apply. */
@@ -2710,7 +3343,7 @@ export interface components {
              * @description Target quantity for the scheduled phase.
              */
             quantity: number;
-            /** @description Optional metadata for this scheduled phase. Maximum 10 keys. Key length must be 40 characters or fewer and string value length must be 500 characters or fewer. */
+            /** @description Optional metadata for this scheduled phase. Maximum 20 keys. Key length must be 40 characters or fewer and string value length must be 500 characters or fewer. */
             metadata?: {
                 [key: string]: string;
             };
@@ -2721,6 +3354,8 @@ export interface components {
             subscriptionId?: string;
             /** @description Unique identifier of the related payment session */
             sessionId?: string;
+            /** @description Payment instrument ID used for the subscription. When paymentInstrumentId is omitted for an auto-creatable payment method, this is the automatically created payment instrument ID. */
+            paymentInstrumentId?: string;
             /**
              * Format: int32
              * @description Payment result status. `1` means success, `2` means pending, `3` means failure, and `5` means need next action to complete payment.
@@ -2752,7 +3387,7 @@ export interface components {
             msg?: string;
             data?: components["schemas"]["CreateSubscriptionApiVo"];
         };
-        /** @description Parameters required to create a one-time payment by API. Provide at least one customer identifier. Provide either priceId with productId, or amount with currency. */
+        /** @description Parameters required to create a one-time payment by API. Provide at least one customer identifier. Provide either priceId with productId, or amount with currency. Use paymentCurrency to charge the customer in a different supported payment currency. */
         CreatePaymentApiRequest: {
             /** @description Existing customer ID. At least one customer identifier is required. */
             customerId?: string;
@@ -2760,13 +3395,13 @@ export interface components {
             customerEmail?: string;
             /** @description Merchant-side customer ID used to resolve, create, or bind a customer. */
             referenceCustomerId?: string;
-            /** @description Existing payment instrument ID. */
-            paymentInstrumentId: string;
+            /** @description Existing payment instrument ID. Required for payment methods that do not support automatic payment instrument creation. CARD requires a previously saved card and its paymentInstrumentId. Can be omitted for CASHAPP, GCASH, TNG, WECHAT, KAKAO, ALIPAY, QRIS, PROMPTPAY. */
+            paymentInstrumentId?: string;
             /**
-             * @description Payment method type. Supported values are uppercase.
+             * @description Payment method type. Supported values are uppercase. CARD (requires a previously saved card and its paymentInstrumentId).
              * @enum {string}
              */
-            paymentMethodType: "ALIPAY" | "CARD" | "CASHAPP" | "GCASH" | "KAKAO" | "PROMPTPAY" | "QRIS" | "TNG" | "WECHAT";
+            paymentMethodType: "ALIPAY" | "CARD" | "CASHAPP" | "GCASH" | "KAKAO" | "PIX" | "PROMPTPAY" | "QRIS" | "TNG" | "UPI" | "WECHAT";
             /** @description Predefined one-time price ID. If provided, productId is required. */
             priceId?: string;
             /** @description Product ID. Required when priceId is provided. */
@@ -2775,8 +3410,13 @@ export interface components {
             priceDataList?: components["schemas"]["PriceData"][];
             /** @description Direct payment amount. Required with currency when priceId is not provided. */
             amount?: number;
-            /** @description Direct payment currency. Required with amount when priceId is not provided. */
+            /** @description Original pricing currency. Required with amount when priceId is not provided. If paymentCurrency is not provided, this currency is also used as the payment currency. */
             currency?: string;
+            /**
+             * @description Optional target payment currency. When provided, Clink uses the configured fixed multi-currency price when available, otherwise automatically converts from the original pricing currency. The requested payment method must support the target currency.
+             * @example HKD
+             */
+            paymentCurrency?: string;
             /** @description Merchant-side reference ID for reconciliation. */
             merchantReferenceId?: string;
             /** @description URL where the customer is redirected after required payment actions. */
@@ -2804,6 +3444,8 @@ export interface components {
             orderId?: string;
             /** @description Unique identifier of the related payment session */
             sessionId?: string;
+            /** @description Payment instrument ID used for the one-time payment. When paymentInstrumentId is omitted for an auto-creatable payment method, this is the automatically created payment instrument ID. */
+            paymentInstrumentId?: string;
             /**
              * Format: int32
              * @description Payment result status. `1` means success, `2` means pending, `3` means failure, and `5` means need next action to complete payment.
@@ -2814,7 +3456,7 @@ export interface components {
             action?: components["schemas"]["Action"];
             /** @description Amount charged for this one-time payment */
             amount?: number;
-            /** @description Currency used for the payment */
+            /** @description Actual currency used for the payment */
             currency?: string;
         };
         CreatePaymentApiResponse: {
@@ -2844,7 +3486,7 @@ export interface components {
              * @description Payment method or action type that triggered this next step.
              * @enum {string}
              */
-            type?: "ALIPAY" | "CARD" | "CASHAPP" | "GCASH" | "KAKAO" | "PROMPTPAY" | "QRIS" | "TNG" | "WECHAT";
+            type?: "ALIPAY" | "CARD" | "CASHAPP" | "GCASH" | "KAKAO" | "PIX" | "PROMPTPAY" | "QRIS" | "TNG" | "UPI" | "WECHAT";
             /** @description Wallet-side display or redirect payload used for QR code rendering, mobile auth links, hosted instructions, or fallback URLs. */
             walletHandleRedirectOrDisplayQrCode?: components["schemas"]["WalletHandleRedirectOrDisplayQrCode"];
             /** @description Payment method type associated with this action. */
@@ -2967,9 +3609,17 @@ export interface components {
              * @description Payment instrument type. Supported values are uppercase. Card and browser-wallet payment instruments are not supported by this API.
              * @enum {string}
              */
-            paymentInstrumentType: "ALIPAY" | "CASHAPP" | "GCASH" | "KAKAO" | "PROMPTPAY" | "QRIS" | "TNG" | "WECHAT";
-            /** @description Optional sub payment method type. */
-            subPaymentMethodType?: string;
+            paymentInstrumentType: "ALIPAY" | "CASHAPP" | "GCASH" | "KAKAO" | "PIX" | "PROMPTPAY" | "QRIS" | "TNG" | "UPI" | "WECHAT";
+            /** @description CPF holder name. Required when paymentInstrumentType is PIX. */
+            cpfName?: string;
+            /** @description CPF number. Required when paymentInstrumentType is PIX. */
+            cpfNumber?: string;
+            /** @description UPI account holder name. Required when paymentInstrumentType is UPI. */
+            upiName?: string;
+            /** @description Phone number for the UPI account. Required when paymentInstrumentType is UPI. */
+            phoneNumber?: string;
+            /** @description Billing address for the UPI account. Required when paymentInstrumentType is UPI. city, region, country, line1, and postalCode are required for UPI. */
+            billingAddress?: components["schemas"]["BillingAddressJson"];
             /** @description Merchant metadata. Values must be strings. */
             metadata?: {
                 [key: string]: string;
@@ -2985,7 +3635,7 @@ export interface components {
              * @description Payment instrument type.
              * @enum {string}
              */
-            type?: "ALIPAY" | "CASHAPP" | "GCASH" | "KAKAO" | "PROMPTPAY" | "QRIS" | "TNG" | "WECHAT";
+            type?: "ALIPAY" | "CASHAPP" | "GCASH" | "KAKAO" | "PIX" | "PROMPTPAY" | "QRIS" | "TNG" | "UPI" | "WECHAT";
             card?: components["schemas"]["PaymentInstrumentCardApiVo"];
             wallet?: components["schemas"]["PaymentInstrumentWalletApiVo"];
             /**
@@ -3040,8 +3690,6 @@ export interface components {
             line2?: string;
             /** @description Postal or zip code. */
             postalCode?: string;
-            /** @description Address status or validation status. */
-            status?: string;
             /** @description Region or state. */
             region?: string;
         };
@@ -3748,9 +4396,291 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /**
+         * @description Supported webhook event name. Public API requests use event names, not numeric event codes.
+         * @enum {string}
+         */
+        WebhookEventName: "order.created" | "order.succeeded" | "order.failed" | "refund.created" | "refund.succeeded" | "refund.failed" | "subscription.created" | "subscription.trialing" | "subscription.activated" | "subscription.incomplete_expired" | "subscription.past_due" | "subscription.cancelled" | "invoice.open" | "invoice.paid" | "invoice.void" | "order.next_action" | "subscription.updated.plan_changed" | "subscription.updated.plan_change_canceled" | "subscription.updated.renewed" | "subscription.updated.cancel_at_period_end_set" | "subscription.updated.cancel_at_period_end_revoked" | "session.complete" | "session.expired" | "dispute.created" | "dispute.updated" | "dispute.won" | "dispute.lost" | "dispute.closed" | "customer.verify" | "payment_method.added" | "payment_method.default_change" | "risk_rule.updated" | "agent_order.succeeded" | "agent_order.failed" | "agent_refund.succeeded" | "agent_refund.failed" | "agent_refund.approved" | "agent_refund.rejected" | "payment_method.update" | "purchase_instruction.created" | "purchase_instruction.activated" | "purchase_instruction.updated" | "purchase_instruction.cancelled" | "vic_device.binding_succeeded";
+        WebhookEventResponse: {
+            name?: components["schemas"]["WebhookEventName"];
+            /**
+             * Format: int32
+             * @description Internal numeric event code returned for reference only. Numeric event codes are not accepted in public API request bodies.
+             */
+            code?: number;
+            /** @description Human-readable event description. */
+            description?: string;
+        };
+        WebhookEventListResponse: {
+            /** @description Complete list of supported webhook events. */
+            events?: components["schemas"]["WebhookEventResponse"][];
+            /** @description Event alias groups. The core alias contains a recommended baseline event set for most payment integrations. */
+            aliases?: {
+                all?: components["schemas"]["WebhookEventName"][];
+                core?: components["schemas"]["WebhookEventName"][];
+            };
+        };
+        /** @description Body of the response message */
+        RWebhookEventListResponse: {
+            /**
+             * Format: int32
+             * @description Response status code, 200 when success
+             * @example 200
+             */
+            code?: number;
+            /**
+             * @description Brief description of what happened, 'success' when happy case
+             * @example Success
+             */
+            msg?: string;
+            data?: components["schemas"]["WebhookEventListResponse"];
+        };
+        WebhookEndpointResponse: {
+            /**
+             * @description Unique identifier of the webhook endpoint.
+             * @example whk_xxxxx
+             */
+            id?: string;
+            /**
+             * Format: uri
+             * @description HTTPS URL that receives webhook events.
+             * @example https://example.com/api/clink/webhook
+             */
+            url?: string;
+            /**
+             * @description Event names subscribed by this endpoint. Responses always return event names.
+             * @example [
+             *       "session.complete",
+             *       "order.succeeded"
+             *     ]
+             */
+            events?: components["schemas"]["WebhookEventName"][];
+            /**
+             * @description Whether this endpoint is active.
+             * @example true
+             */
+            enabled?: boolean;
+            /**
+             * @description Plaintext signing secret. Returned only when a secret is newly created or rotated; otherwise null.
+             * @example whsec_xxxxx
+             */
+            signingSecret?: string | null;
+            /**
+             * @description Masked signing secret for display.
+             * @example whsec_...abcd
+             */
+            maskedSigningSecret?: string | null;
+            /**
+             * @description Optional endpoint description.
+             * @example Created through the API
+             */
+            description?: string | null;
+            /**
+             * Format: int64
+             * @description Creation time as a 13-digit Unix timestamp in milliseconds.
+             * @example 1782112780956
+             */
+            createdAt?: number | null;
+            /**
+             * Format: int64
+             * @description Last update time as a 13-digit Unix timestamp in milliseconds.
+             * @example 1782113780956
+             */
+            updatedAt?: number | null;
+        };
+        /** @description Body of the response message */
+        RWebhookEndpointResponse: {
+            /**
+             * Format: int32
+             * @description Response status code, 200 when success
+             * @example 200
+             */
+            code?: number;
+            /**
+             * @description Brief description of what happened, 'success' when happy case
+             * @example Success
+             */
+            msg?: string;
+            data?: components["schemas"]["WebhookEndpointResponse"];
+        };
+        /** @description Body of the response message */
+        RWebhookVoidResponse: {
+            /**
+             * Format: int32
+             * @description Response status code, 200 when success
+             * @example 200
+             */
+            code?: number;
+            /**
+             * @description Brief description of what happened, 'success' when happy case
+             * @example Success
+             */
+            msg?: string;
+            /** @description No response data is returned. */
+            data?: null;
+        };
+        /** @description Table Paging Data Object */
+        TableDataInfoWebhookEndpointResponse: {
+            /**
+             * Format: int64
+             * @description Total number of records
+             * @example 1
+             */
+            total?: number;
+            /** @description List of webhook endpoints */
+            rows?: components["schemas"]["WebhookEndpointResponse"][];
+            /**
+             * Format: int32
+             * @description Response status code, 200 when success
+             * @example 200
+             */
+            code?: number;
+            /**
+             * @description Brief description of what happened, 'success' when happy case
+             * @example Success
+             */
+            msg?: string;
+        };
+        WebhookEndpointCreateRequest: {
+            /**
+             * Format: uri
+             * @description HTTPS endpoint URL. Localhost, loopback IPs, private IPs, link-local addresses, and multicast addresses are rejected.
+             * @example https://example.com/api/clink/webhook
+             */
+            url: string;
+            /**
+             * @description Event names to subscribe to. Numeric event codes are not accepted.
+             * @example [
+             *       "session.complete",
+             *       "order.succeeded",
+             *       "invoice.paid"
+             *     ]
+             */
+            events: components["schemas"]["WebhookEventName"][];
+            /**
+             * @description Optional endpoint description.
+             * @example Created through the API
+             */
+            description?: string;
+            /**
+             * @description Whether the endpoint is enabled.
+             * @default true
+             */
+            enabled: boolean;
+        };
+        WebhookEndpointUpdateRequest: {
+            /**
+             * Format: uri
+             * @description HTTPS endpoint URL. If omitted, the current URL is unchanged.
+             * @example https://example.com/api/clink/webhook
+             */
+            url?: string;
+            /**
+             * @description Event names to subscribe to. If omitted, current subscriptions are unchanged. Numeric event codes are not accepted.
+             * @example [
+             *       "order.succeeded",
+             *       "invoice.paid"
+             *     ]
+             */
+            events?: components["schemas"]["WebhookEventName"][];
+            /**
+             * @description Endpoint description. Send an empty string to clear it.
+             * @example Updated through the API
+             */
+            description?: string;
+            /** @description Whether the endpoint is enabled. */
+            enabled?: boolean;
+        };
+        WebhookEndpointEnsureRequest: {
+            /**
+             * Format: uri
+             * @description HTTPS endpoint URL. Used as the idempotency key for this merchant.
+             * @example https://example.com/api/clink/webhook
+             */
+            url: string;
+            /**
+             * @description Event names to subscribe to. Numeric event codes are not accepted.
+             * @example [
+             *       "session.complete",
+             *       "order.succeeded"
+             *     ]
+             */
+            events: components["schemas"]["WebhookEventName"][];
+            /**
+             * @description Optional endpoint description.
+             * @example Created through the API
+             */
+            description?: string;
+            /**
+             * @description Whether the endpoint is enabled.
+             * @default true
+             */
+            enabled: boolean;
+            /** @description Whether the caller wants a plaintext signingSecret when available. */
+            returnSigningSecret?: boolean;
+            /** @description If true, rotate the existing secret when the stored secret cannot be returned as plaintext. */
+            rotateSecretIfUnavailable?: boolean;
+            /** @description If true, always rotate the signing secret for an existing endpoint. */
+            rotateSecret?: boolean;
+        };
+        /**
+         * @description How the ensure request affected the endpoint.
+         * @enum {string}
+         */
+        WebhookEndpointEnsureSource: "created" | "existing" | "updated" | "rotated" | "updated_rotated";
+        WebhookEndpointEnsureResponse: {
+            source?: components["schemas"]["WebhookEndpointEnsureSource"];
+            endpoint?: components["schemas"]["WebhookEndpointResponse"];
+            /**
+             * @description Whether endpoint.signingSecret contains a plaintext signing secret in this response.
+             * @example true
+             */
+            signingSecretAvailable?: boolean;
+            /**
+             * @description Reason the plaintext signing secret is unavailable. Null when not applicable.
+             * @example EXISTING_SECRET_NOT_RETURNABLE
+             * @enum {string|null}
+             */
+            signingSecretUnavailableReason?: "EXISTING_SECRET_NOT_RETURNABLE" | null;
+            /**
+             * @description Suggested next action when the plaintext signing secret is unavailable. Null when not applicable.
+             * @example CALL_ROTATE_SECRET_OR_RETRY_ENSURE_WITH_ROTATE_SECRET_IF_UNAVAILABLE
+             * @enum {string|null}
+             */
+            nextAction?: "CALL_ROTATE_SECRET_OR_RETRY_ENSURE_WITH_ROTATE_SECRET_IF_UNAVAILABLE" | null;
+        };
+        /** @description Body of the response message */
+        RWebhookEndpointEnsureResponse: {
+            /**
+             * Format: int32
+             * @description Response status code, 200 when success
+             * @example 200
+             */
+            code?: number;
+            /**
+             * @description Brief description of what happened, 'success' when happy case
+             * @example Success
+             */
+            msg?: string;
+            data?: components["schemas"]["WebhookEndpointEnsureResponse"];
+        };
+        ClinkErrorResponse: {
+            /**
+             * Format: int32
+             * @description Error code returned by Clink.
+             */
+            code?: number;
+            /** @description Error message. */
+            msg?: string;
+            /** @description Additional error data, usually null. */
+            data?: unknown;
+        };
     };
     responses: never;
-    parameters: never;
+    parameters: {
+        /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+        TimestampHeader: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -3760,7 +4690,10 @@ export interface operations {
     retrieveSubscription: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the subscription */
                 id: string;
@@ -3793,7 +4726,10 @@ export interface operations {
     createSubscription: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -3824,10 +4760,131 @@ export interface operations {
             };
         };
     };
+    previewSubscriptionUpdate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path: {
+                /** @description Unique identifier of the subscription */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Subscription update preview request */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionUpdatePreviewApiRequest"];
+            };
+        };
+        responses: {
+            /** @description Subscription update preview returned successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionUpdatePreviewApiResponse"];
+                    "application/json": components["schemas"]["SubscriptionUpdatePreviewApiResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+        };
+    };
+    confirmSubscriptionUpdate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path: {
+                /** @description Unique identifier of the subscription */
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Subscription update confirmation request */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionUpdateConfirmApiRequest"];
+            };
+        };
+        responses: {
+            /** @description Subscription update confirmed successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionUpdateConfirmApiResponse"];
+                    "application/json": components["schemas"]["SubscriptionUpdateConfirmApiResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+        };
+    };
+    cancelSubscriptionUpdate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path: {
+                /** @description Unique identifier of the subscription */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending subscription update canceled successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SubscriptionApiResponse"];
+                    "application/json": components["schemas"]["SubscriptionApiResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+        };
+    };
     retrieveInvoice: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the invoice */
                 id: string;
@@ -3865,7 +4922,10 @@ export interface operations {
                 /** @description Size of the query results per page,pageSize can range between 1 and 100 */
                 pageSize: number;
             };
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -3894,7 +4954,10 @@ export interface operations {
     createProduct: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -3928,7 +4991,10 @@ export interface operations {
     getProduct: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the product configured in your dashboard */
                 productId: string;
@@ -3970,7 +5036,10 @@ export interface operations {
                 /** @description Is it available for purchase */
                 active: boolean;
             };
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -3999,7 +5068,10 @@ export interface operations {
     createPrice: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4033,7 +5105,10 @@ export interface operations {
     getPrice: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the price configured in your dashboard */
                 id: string;
@@ -4065,7 +5140,10 @@ export interface operations {
     updatePrice: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the price */
                 id: string;
@@ -4102,7 +5180,10 @@ export interface operations {
     add: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4136,7 +5217,10 @@ export interface operations {
     createPayment: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4170,7 +5254,10 @@ export interface operations {
     getSession_2: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the checkout session to retrieve */
                 id: string;
@@ -4203,7 +5290,10 @@ export interface operations {
     getInfo_2: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the order */
                 id: string;
@@ -4236,7 +5326,10 @@ export interface operations {
     cancelSubscription_1: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the subscription */
                 id: string;
@@ -4273,7 +5366,10 @@ export interface operations {
     listTestClocks: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4302,7 +5398,10 @@ export interface operations {
     createTestClock: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4335,7 +5434,10 @@ export interface operations {
     getTestClock: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the test clock */
                 clockId: string;
@@ -4367,7 +5469,10 @@ export interface operations {
     advanceTestClock: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the test clock */
                 clockId: string;
@@ -4403,7 +5508,10 @@ export interface operations {
     completeTestClock: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the test clock */
                 clockId: string;
@@ -4439,7 +5547,10 @@ export interface operations {
     createSession: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4472,7 +5583,10 @@ export interface operations {
     getSession_1: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 sessionId: string;
             };
@@ -4503,7 +5617,10 @@ export interface operations {
     uploadProductImage: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4537,7 +5654,10 @@ export interface operations {
     createPaymentInstrument: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4575,12 +5695,17 @@ export interface operations {
                 subscriptionId?: string;
                 /** @description Customer ID used to filter orders */
                 customerId?: string;
+                /** @description Merchant-side reference ID used to filter orders */
+                merchantReferenceId?: string;
                 /** @description Current page number. Defaults to 1. */
                 pageNum?: number;
                 /** @description Number of records per page. Defaults to 20. The maximum is 50; larger values are capped at 50. */
                 pageSize?: number;
             };
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4610,7 +5735,10 @@ export interface operations {
     createRefund: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4653,7 +5781,10 @@ export interface operations {
                 /** @description Number of records per page. Defaults to 20. The maximum is 50; larger values are capped at 50. */
                 pageSize?: number;
             };
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4683,7 +5814,10 @@ export interface operations {
     createCoupon: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4717,7 +5851,10 @@ export interface operations {
     getCoupon: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the coupon */
                 couponId: string;
@@ -4750,7 +5887,10 @@ export interface operations {
     updateCouponName: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the coupon */
                 couponId: string;
@@ -4787,7 +5927,10 @@ export interface operations {
     listPromotionCodesByCoupon: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the coupon */
                 couponId: string;
@@ -4820,7 +5963,10 @@ export interface operations {
     activatePromotionCode: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the promotion code */
                 promotionCodeId: string;
@@ -4853,7 +5999,10 @@ export interface operations {
     deactivatePromotionCode: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the promotion code */
                 promotionCodeId: string;
@@ -4886,7 +6035,10 @@ export interface operations {
     getPromotionCode: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the promotion code */
                 id: string;
@@ -4919,7 +6071,10 @@ export interface operations {
     createPromotionCode: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the coupon */
                 id: string;
@@ -4956,7 +6111,10 @@ export interface operations {
     refreshWalletQrcode: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
             path: {
                 /** @description Unique identifier of the order */
                 orderId: string;
@@ -4982,6 +6140,456 @@ export interface operations {
                 };
                 content: {
                     "*/*": string;
+                };
+            };
+        };
+    };
+    listWebhookEvents: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook events retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RWebhookEventListResponse"];
+                    "*/*": components["schemas"]["RWebhookEventListResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+        };
+    };
+    listWebhookEndpoints: {
+        parameters: {
+            query?: {
+                /** @description Current page number. Defaults to 1. */
+                pageNum?: number;
+                /** @description Page size. Defaults to 20. The maximum is 100; larger values are capped at 100. */
+                pageSize?: number;
+                /** @description Filter by endpoint status. */
+                enabled?: boolean;
+                /** @description Filter by exact endpoint URL. */
+                url?: string;
+            };
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook endpoints retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TableDataInfoWebhookEndpointResponse"];
+                    "*/*": components["schemas"]["TableDataInfoWebhookEndpointResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+        };
+    };
+    createWebhookEndpoint: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookEndpointCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Webhook endpoint created successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RWebhookEndpointResponse"];
+                    "*/*": components["schemas"]["RWebhookEndpointResponse"];
+                };
+            };
+            /** @description Invalid URL, unsupported event name, duplicate URL, or invalid request body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+        };
+    };
+    ensureWebhookEndpoint: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookEndpointEnsureRequest"];
+            };
+        };
+        responses: {
+            /** @description Webhook endpoint ensured successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RWebhookEndpointEnsureResponse"];
+                    "*/*": components["schemas"]["RWebhookEndpointEnsureResponse"];
+                };
+            };
+            /** @description Invalid URL, unsupported event name, duplicate URL, or invalid request body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+        };
+    };
+    getWebhookEndpoint: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path: {
+                /** @description Unique identifier of the webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook endpoint retrieved successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RWebhookEndpointResponse"];
+                    "*/*": components["schemas"]["RWebhookEndpointResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+            /** @description Endpoint not found or not owned by the current merchant */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteWebhookEndpoint: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path: {
+                /** @description Unique identifier of the webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook endpoint deleted successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RWebhookVoidResponse"];
+                    "*/*": components["schemas"]["RWebhookVoidResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+            /** @description Endpoint not found or not owned by the current merchant */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+        };
+    };
+    updateWebhookEndpoint: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path: {
+                /** @description Unique identifier of the webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookEndpointUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Webhook endpoint updated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RWebhookEndpointResponse"];
+                    "*/*": components["schemas"]["RWebhookEndpointResponse"];
+                };
+            };
+            /** @description Invalid URL, unsupported event name, duplicate URL, or invalid request body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+            /** @description Endpoint not found or not owned by the current merchant */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+        };
+    };
+    enableWebhookEndpoint: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path: {
+                /** @description Unique identifier of the webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook endpoint enabled successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RWebhookEndpointResponse"];
+                    "*/*": components["schemas"]["RWebhookEndpointResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+            /** @description Endpoint not found or not owned by the current merchant */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+        };
+    };
+    disableWebhookEndpoint: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path: {
+                /** @description Unique identifier of the webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook endpoint disabled successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RWebhookEndpointResponse"];
+                    "*/*": components["schemas"]["RWebhookEndpointResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+            /** @description Endpoint not found or not owned by the current merchant */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+        };
+    };
+    rotateWebhookEndpointSecret: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Current timestamp in milliseconds since Unix epoch (required for request signing) */
+                "X-Timestamp": components["parameters"]["TimestampHeader"];
+            };
+            path: {
+                /** @description Unique identifier of the webhook endpoint. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook signing secret rotated successfully */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RWebhookEndpointResponse"];
+                    "*/*": components["schemas"]["RWebhookEndpointResponse"];
+                };
+            };
+            /** @description Missing or invalid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
+                };
+            };
+            /** @description Endpoint not found or not owned by the current merchant */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinkErrorResponse"];
                 };
             };
         };

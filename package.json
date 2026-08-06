@@ -1,6 +1,6 @@
 {
   "name": "clink-integ-cli",
-  "version": "0.1.14",
+  "version": "0.2.0",
   "description": "Merchant developer CLI for ClinkBill integrations.",
   "type": "module",
   "main": "dist/index.js",
@@ -21,7 +21,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "check": "tsc --noEmit",
+    "check": "tsc --noEmit && tsc -p tsconfig.type-tests.json",
     "openapi:refresh": "openapi-typescript https://docs.clinkbill.com/api-reference/openapi.json -o src/openapi/clink.openapi.ts",
     "test": "vitest run",
     "verify": "npm run check && npm test && npm run build",

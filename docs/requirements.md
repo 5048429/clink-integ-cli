@@ -75,11 +75,11 @@ Webhook endpoint management uses the public Secret Key API. Agents should prefer
 
 ```bash
 clink webhook endpoint events --json
-clink webhook endpoint ensure --url https://your-public-host.example.com/api/clink/webhook --events core --save-secret --json
+clink webhook endpoint ensure --url https://your-public-host.example.com/api/clink/webhook --events commerce --save-secret --json
 clink webhook endpoint list --json
 ```
 
-`dashboard webhook` is a compatibility alias for older scripts, but it no longer requires a Dashboard Console token for endpoint management. The Secret Key selects the current merchant. Request bodies use webhook event names, not Dashboard numeric event codes. `--events core` expands to the six commonly used delivery events; `--events all` expands to the full 44-event Secret Key API catalog.
+`dashboard webhook` is a compatibility alias for older scripts, but it no longer requires a Dashboard Console token for endpoint management. The Secret Key selects the current merchant. Request bodies use webhook event names, not Dashboard numeric event codes. Event selections are resolved from runtime `GET /webhook/events`; `commerce` is the complete checkout/subscription/dispute/payment-method preset, while `core` remains a deliberately incomplete six-event compatibility preset.
 
 ## Catalog Import Flow
 

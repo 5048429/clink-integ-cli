@@ -85,13 +85,13 @@ webhook endpoint 创建、更新、启用、禁用、删除、签名 key 轮换�
 ```bash
 clink webhook endpoint ensure \
   --url https://your-public-host.example.com/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --sync-env-file .env.local \
   --json
 ```
 
-`--events core` 会提交事件名：`session.complete`、`order.succeeded`、`order.failed`、`refund.succeeded`、`subscription.created`、`invoice.paid`。`--events all` 会提交当前公开 Secret Key API 支持的全部 44 个事件名。公开 API 不接受 Dashboard 数字 event code。
+完整收费接入推荐 `--events commerce`，它从运行时 `GET /webhook/events` 校验并展开 checkout、subscriptions、disputes、payment-methods 的并集。`core` 仅保留 6 个兼容事件，不覆盖完整订阅生命周期、催缴、取消、拒付、`refund.failed` 和 `session.expired`。公开 API 不接受 Dashboard 数字 event code。
 
 6. 本地验证 webhook 签名：
 
@@ -143,7 +143,7 @@ Windows PowerShell 使用：
 2. 如果没有 Secret Key 且本地有浏览器：clink login && clink dashboard apikey ensure-secret --save --json
 3. clink checkout create ... --json
 4. clink api request GET /order --query pageNum=1 --query pageSize=20 --json
-5. 如需 webhook 自动配置：clink webhook endpoint ensure --url <public-webhook-url> --events core --save-secret --sync-env-file .env.local --json
+5. 如需完整收费 webhook 自动配置：clink webhook endpoint ensure --url <public-webhook-url> --events commerce --save-secret --sync-env-file .env.local --json
 6. clink webhook simulate order.succeeded --forward-to <local-or-public-webhook-url> --json
 
 所有涉及 Secret Key、Dashboard token、webhook signing key 的输出都必须打码，不要写入源码。

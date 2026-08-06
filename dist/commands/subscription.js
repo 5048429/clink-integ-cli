@@ -6,8 +6,8 @@ export function registerSubscription(program) {
     subscription
         .command("get <subscription-id>")
         .description("Get subscription details")
-        .action(async (subscriptionId, command) => {
-        const { config, client } = await getCommandContext(command);
+        .action(async function (subscriptionId) {
+        const { config, client } = await getCommandContext(this);
         const result = await client.get(`/subscription/${encodeURIComponent(subscriptionId)}`);
         printResult(result, config.outputMode);
     });

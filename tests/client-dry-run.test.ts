@@ -7,6 +7,7 @@ function testConfig(overrides: Partial<RuntimeConfig> = {}): RuntimeConfig {
     profile: "default",
     environment: "sandbox",
     baseUrl: "https://uat-api.clinkbill.com/api/",
+    apiTimeoutMs: 30_000,
     dryRun: true,
     outputMode: "json",
     ...overrides,

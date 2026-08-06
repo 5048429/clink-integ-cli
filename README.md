@@ -165,25 +165,41 @@ clink webhook endpoint list --json
 
 clink webhook endpoint ensure \
   --url https://your-public-host.example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --sync-env-file .env.local \
   --json
 
 clink webhook endpoint update whk_xxx \
   --url https://new-public-host.example.com/api/clink/webhook \
-  --events core
+  --events commerce
 
 clink webhook endpoint enable whk_xxx
 clink webhook endpoint disable whk_xxx
 clink webhook endpoint rotate-secret whk_xxx --save-secret --json
 ```
 
-`webhook endpoint ensure` creates or updates the endpoint by URL. It is the recommended idempotent setup command for agents. Created and updated endpoints are enabled by default; pass `--disabled` only when you intentionally want to leave one disabled. Use `webhook endpoint update <endpoint-id>` when a local tunnel URL changes and you want to reuse an existing endpoint record instead of creating another one.
+`webhook endpoint ensure` creates or updates the endpoint by URL. Its default event behavior is a **safe merge**: existing subscriptions are preserved and the resolved events are added. If the endpoint-list summary omits its event set, the CLI reads endpoint detail and fails closed when events still cannot be determined. Pass `--allow-remove-events` only when you explicitly want replacement semantics; a dangerous replacement prints `added`, `removed`, `unchanged`, and the final event set before PUT, and interactive use asks for confirmation. After PUT, the CLI reads the endpoint back and exits non-zero unless the final event set exactly matches the computed merge or replacement target.
 
-`--save-secret` stores the returned signing secret in the current local profile for `clink webhook simulate/sign/verify`. `--sync-env-file <path>` writes or updates `CLINK_WEBHOOK_SIGNING_KEY` in a local env file after the plaintext signing secret is resolved; add `--restart-command "<command>"` when you want the CLI to restart a local server after writing the file. For existing endpoints, Clink cannot return the old plaintext secret; when `--save-secret`, `--show-secret`, or `--sync-env-file` is used, `ensure` requests the plaintext secret and automatically asks the API to rotate it if the old secret is unavailable. `--show-secret` prints the raw value only when you explicitly ask for it.
+Created and updated endpoints are enabled by default; pass `--disabled` only when you intentionally want to leave one disabled. Use `webhook endpoint update <endpoint-id>` when a local tunnel URL changes and you want to reuse an existing endpoint record instead of creating another one.
 
-Webhook endpoint URLs must start with `https://` and cannot use localhost, loopback, private, link-local, or multicast hosts. Public API request bodies use event names, not Dashboard numeric event codes. `--events core` expands to `session.complete`, `order.succeeded`, `order.failed`, `refund.succeeded`, `subscription.created`, and `invoice.paid`; `--events all` expands to the full 44-event Secret Key API catalog returned by `clink webhook endpoint events`.
+`--save-secret` stores the returned signing secret in the current local profile for `clink webhook simulate/sign/verify`. `--sync-env-file <path>` atomically writes or updates `CLINK_WEBHOOK_SIGNING_KEY` in a local env file after the plaintext signing secret is resolved; local destinations are checked before PUT, and profile/env updates are rolled back when a later write races or fails. Add `--restart-command "<command>"` together with `--sync-env-file` when you want the CLI to restart a local server after writing the file; the restart completes before endpoint read-back, and captured restart output is redacted before it reaches JSON or terminal output. For existing endpoints, Clink cannot return the old plaintext secret; when `--save-secret`, `--show-secret`, or `--sync-env-file` is used, `ensure` requests the plaintext secret and automatically asks the API to rotate it if the old secret is unavailable. `--show-secret` prints the raw value only when you explicitly ask for it. API requests abort after 30 seconds by default; use `--timeout-ms` or `CLINK_API_TIMEOUT_MS` for a different positive limit.
+
+Webhook endpoint URLs must start with `https://` and cannot use localhost, loopback, private, link-local, or multicast hosts. Public API request bodies use event names, not Dashboard numeric event codes. Every event selection is validated against the runtime `GET /webhook/events` response; missing preset events fail instead of being silently removed.
+
+Available presets can be combined and are de-duplicated:
+
+- `core`: the compatibility set of exactly 6 events: `session.complete`, `order.succeeded`, `order.failed`, `refund.succeeded`, `subscription.created`, and `invoice.paid`. It is **not** a complete subscription preset and omits the full subscription lifecycle, dunning, cancellation, disputes/chargebacks, `refund.failed`, and `session.expired`.
+- `checkout`: 9 session, order, and refund events.
+- `subscriptions`: 14 events covering 11 subscription lifecycle events plus `invoice.open`, `invoice.paid`, and `invoice.void`.
+- `disputes`: 5 dispute lifecycle events.
+- `payment-methods`: the stable set of 3 currently public payment-method events.
+- `commerce`: the checkout, subscriptions, disputes, and payment-methods union; 31 events in the current 44-event catalog.
+- `all`: every event returned by the current runtime catalog.
+
+If a newer runtime publishes `payment_method.deleted`, it is available through an explicit event name and through `all`; stable `payment-methods` and `commerce` do not silently grow.
+
+Example composition: `--events checkout,subscriptions,disputes,payment-methods`.
 
 ## MVP Commands
 
@@ -224,7 +240,7 @@ clink payment instrument create --data '{"customerEmail":"test@example.com","pay
 clink api request GET /order --query pageNum=1 --query pageSize=20
 clink api request POST /refund --data '{"orderId":"order_xxx","refundMerchantOrderId":"refund_merchant_xxx","refundAmount":9.99}'
 
-clink webhook endpoint ensure --url https://your-public-host.example.com/api/clink/webhook --events core --save-secret --sync-env-file .env.local --json
+clink webhook endpoint ensure --url https://your-public-host.example.com/api/clink/webhook --events commerce --save-secret --sync-env-file .env.local --json
 clink webhook simulate order.succeeded --secret env:CLINK_WEBHOOK_SIGNING_KEY --forward-to http://localhost:3000/api/clink/webhook
 
 clink doctor
@@ -322,6 +338,7 @@ If scanned products do not have uploaded Clink image OSS IDs yet, prefer `imageU
 ## Checkout Sessions
 
 Checkout is the payment entry point. The CLI supports both price sources from the official quickstart.
+Under the current API contract, both registered-product and inline checkout require `--amount` and `--currency`; registered IDs do not make those options optional.
 
 Use an existing Dashboard product and price:
 
@@ -363,7 +380,7 @@ clink init --framework express --out ./tmp-express --force --json
 clink init --framework fastapi --out ./tmp-fastapi --force --json
 ```
 
-Each starter includes checkout, subscription, and raw-body webhook examples, plus `.env.example`, curl examples, and integration docs. Secrets are read from environment variables such as `CLINK_SECRET_KEY` and `CLINK_WEBHOOK_SIGNING_KEY`.
+Each starter includes checkout, subscription, and raw-body webhook examples, plus `.env.example`, curl examples, and integration docs. Generated handlers verify the untouched raw body before parsing, normalize canonical and legacy envelopes, emit a safe warning metric for legacy payloads, and return non-2xx for unknown payloads or events. Secrets are read from environment variables such as `CLINK_SECRET_KEY` and `CLINK_WEBHOOK_SIGNING_KEY`.
 
 ## Local Webhook Development
 
@@ -372,8 +389,17 @@ The webhook tools do not require Dashboard setup or live Clink API access. Use a
 Generate a stable fixture:
 
 ```bash
+clink webhook fixture invoice.paid --json
 clink webhook fixture invoice.paid --out ./fixtures/invoice-paid.json --json
 ```
+
+Without `--out`, `--json` prints the generated fixture in the command result. `--out` remains available when a stable fixture file is needed.
+
+The default `merchant-webhook` fixture profile uses the production Merchant Webhook envelope: an `event_` ID, `object: "event"`, Unix-millisecond `created`, and the complete resource under object-valued `data.object`. Invoice resources use `items`, never `lineItems`. The old flattened format is available only through explicit `--fixture-profile legacy` for compatibility with old tests; it is deprecated and prints a warning.
+
+Dispute fixtures omit the merchant-payload-filtered `channelCode` field and serialize `evidenceDeadline` and `channelDisputeTime` as Unix-millisecond integers. Payment-method fixtures use the production enum value `type: "CARD"`.
+
+Merchant Webhooks and Agent Customer Callbacks are separate contracts. This release does not reinterpret subscription or invoice events as flattened Agent Callback payloads and does not provide an `agent-callback` fixture profile.
 
 Sign the exact raw file contents:
 
@@ -399,15 +425,45 @@ Supported fixtures:
 session.complete
 session.expired
 order.created
+order.next_action
 order.succeeded
 order.failed
+refund.created
+refund.succeeded
+refund.failed
 subscription.created
+subscription.trialing
 subscription.activated
+subscription.incomplete_expired
 subscription.past_due
+subscription.cancelled
+subscription.updated.plan_changed
+subscription.updated.plan_change_canceled
+subscription.updated.renewed
+subscription.updated.cancel_at_period_end_set
+subscription.updated.cancel_at_period_end_revoked
 invoice.open
 invoice.paid
 invoice.void
+dispute.created
+dispute.updated
+dispute.won
+dispute.lost
+dispute.closed
+payment_method.added
+payment_method.default_change
+payment_method.update
 ```
+
+These 31 fixtures cover the stable `commerce` preset. They are deterministic local simulations for handler and routing tests; they are not evidence that Clink emitted the corresponding server event.
+
+For `order.failed`, `refund.succeeded`, `subscription.past_due`, `invoice.void`, and `dispute.created`, the acceptance suite also uses fully redacted `data.object` resources extracted from real Sandbox logs. Their source declarations, capture metadata, and SHA-256 values are recorded in the test manifest. These resources are not complete raw event bodies: the test constructs a canonical envelope locally, signs it with a local test key, and replays it over localhost. This was explicitly approved as the v0.2.0 substitute acceptance path. The real Clink-to-Endpoint end-to-end leg was not executed and was explicitly waived, so this evidence must not be reported as a real end-to-end Sandbox UAT pass.
+
+## Webhook Type Contracts
+
+`src/openapi/clink.openapi.ts` is generated by `npm run openapi:refresh` from the current public OpenAPI document and must not be edited by hand. It describes the published API surface, including the object-valued webhook envelope, and remains the source for REST request and response types.
+
+The public OpenAPI resource schemas can lag production serialization for nullable fields, decimal-string amounts, filtered fields, and timestamp formats. The exported Merchant Webhook aliases therefore use the hand-maintained canonical envelope and resource contracts in `src/webhook/contracts.ts`; invoice, subscription, dispute, and payment-method webhook objects use those production-serialization types. `ClinkWebhookEvent` includes the three stable payment-method events but intentionally excludes `payment_method.deleted`. Generated OpenAPI resource DTOs may still be reused where suitable, but generated event envelopes are not the authoritative Merchant Webhook contract.
 
 ## AI-Friendly Output
 
@@ -419,6 +475,7 @@ clink checkout create ... --json
 
 ## Project Docs
 
+- [v0.2.0 release candidate notes](docs/releases/v0.2.0.md)
 - [CLI 使用文档](docs/cli-usage.zh-CN.md)
 - [AI 自动接入官网与 Developers 更新 PRD](docs/ai-integration-website-developers-prd.zh-CN.md)
 - [Requirements](docs/requirements.md)

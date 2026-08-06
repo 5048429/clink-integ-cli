@@ -66,12 +66,12 @@ webhook endpoint 管理已经支持 Secret Key API。Agent 必须优先使用：
 ```bash
 clink webhook endpoint ensure \
   --url <public-webhook-url> \
-  --events core \
+  --events commerce \
   --save-secret \
   --json
 ```
 
-`--events core` 使用 6 个常用事件名而不是 Dashboard 数字 code。`--events all` 会订阅当前公开 Secret Key API 支持的全部 44 个事件名；只有确实需要争议、支付方式、风控、purchase instruction、VIC device 或 agent refund/order 等扩展事件时才使用。`--save-secret` 会把 signing key 保存到 CLI profile；需要写入外部平台 Secret 时才使用 `--show-secret` 读取明文。
+完整收费接入使用 `--events commerce`，CLI 会先读取运行时 `GET /webhook/events`，再展开 checkout、subscriptions、disputes 和 payment-methods 的并集。`core` 只保留 6 个兼容事件，不覆盖完整订阅生命周期、催缴、取消、拒付、`refund.failed` 和 `session.expired`。`--events all` 使用运行时 Catalog 的全部事件。`--save-secret` 会把 signing key 保存到 CLI profile；需要写入外部平台 Secret 时才使用 `--show-secret` 读取明文。
 
 如果普通安装拿到的 CLI 过旧，不支持 `auth secret set`，请重新安装/更新最新 CLI 后再继续。不要因为旧 CLI 缺少能力就直接把 webhook 配置交给用户。
 
@@ -408,7 +408,7 @@ X-Clink-Signature
 - 先在 agent 环境安装项目内 CLI，并确认 `clink webhook endpoint ensure --help` 支持 `--show-secret`。
 - 使用平台已配置的 `CLINK_SECRET_KEY`，或在受控的一次性命令环境里让用户只提供 `CLINK_SECRET_KEY`，运行 `clink auth secret set --api-key env:CLINK_SECRET_KEY --env sandbox`。
 - 部署包含 webhook route 的版本，拿到公网 HTTPS webhook URL。
-- 运行 `clink webhook endpoint ensure --url <public-webhook-url>/api/clink/webhook --events core --save-secret --show-secret --json`。
+- 运行 `clink webhook endpoint ensure --url <public-webhook-url>/api/clink/webhook --events commerce --save-secret --show-secret --json`。
 - agent 如果有平台 Secret 写入能力，必须自己把返回或轮换得到的 signing key 写入平台后端 Secret：`CLINK_WEBHOOK_SIGNING_KEY`，然后重新发布/重启后端。
 - 只有当平台不允许 agent 写入 Secret、也没有可用平台 Secret API 时，才把“请用户把这一个 signing key 写入平台后端 Secret 并重新发布”列为阻塞的人类步骤，并明确说明这是平台写入权限限制，不是 Clink CLI 能力缺失。
 
@@ -437,7 +437,7 @@ https://example.com/api/clink/webhook
 ```bash
 clink webhook endpoint ensure \
   --url https://example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --json
 ```
@@ -452,7 +452,7 @@ clink webhook endpoint ensure \
 ```bash
 clink webhook endpoint ensure \
   --url https://example.com/api/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --show-secret \
   --json
@@ -500,21 +500,14 @@ cloudflared tunnel --url http://127.0.0.1:<PORT> --no-autoupdate --protocol http
 ```bash
 clink webhook endpoint ensure \
   --url <public-webhook-url>/api/clink/webhook \
-  --events core \
+  --events commerce \
   --save-secret \
   --json
 ```
 
-`--events core` 会提交 6 个常用事件名，对应：
+`--events commerce` 在当前 44 事件 Catalog 中稳定展开为 31 个收费相关事件，包括 checkout、11 个 subscription 生命周期事件、3 个 invoice、5 个 dispute 和 3 个 payment method 事件。较新 Catalog 中的 `payment_method.deleted` 只能通过显式事件名或动态 `all` 选择，不会让稳定 commerce 静默变成 32 个。`core` 仍固定为原有 6 个事件，但必须提示它不是完整订阅集成预设。
 
-- `session.complete`
-- `order.succeeded`
-- `order.failed`
-- `refund.succeeded`
-- `subscription.created`
-- `invoice.paid`
-
-如需订阅完整 webhook 目录，使用 `--events all`；它会展开为公开 Secret Key API 当前支持的 44 个事件名。
+如需订阅 commerce 之外的 risk rule、agent order/refund、purchase instruction 或 VIC device 等事件，使用运行时解析的 `--events all`。
 
 重要：无论使用已有域名还是 cloudflared tunnel，每次 webhook URL 变化后，都要重新运行 `clink webhook endpoint ensure --save-secret --json`。运行后必须同步最新 webhook signing key 到 `.env`、平台 Secret 或服务端环境变量，并重启/重新部署服务。
 

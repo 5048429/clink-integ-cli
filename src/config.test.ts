@@ -29,6 +29,7 @@ beforeEach(() => {
   setEnv("CLINK_API_KEY", undefined);
   setEnv("CLINK_WEBHOOK_SIGNING_KEY", undefined);
   setEnv("CLINK_WEBHOOK_SECRET", undefined);
+  setEnv("CLINK_API_TIMEOUT_MS", undefined);
 });
 
 afterEach(() => {
@@ -46,6 +47,14 @@ describe("resolveRuntimeConfig environments", () => {
     expect(config.environment).toBe("sandbox");
     expect(config.baseUrl).toBe("https://uat-api.clinkbill.com/api/");
     expect(config.dashboardEndpoints.baseUrl).toBe("https://uat-dashboard.clinkbill.com/prod-api/");
+    expect(config.apiTimeoutMs).toBe(30_000);
+  });
+
+  it("supports a bounded API timeout from options or CLINK_API_TIMEOUT_MS", async () => {
+    setEnv("CLINK_API_TIMEOUT_MS", "2500");
+    expect((await resolveRuntimeConfig({})).apiTimeoutMs).toBe(2500);
+    expect((await resolveRuntimeConfig({ timeoutMs: "75" })).apiTimeoutMs).toBe(75);
+    await expect(resolveRuntimeConfig({ timeoutMs: "0" })).rejects.toThrow(/positive integer/);
   });
 
   it("uses prod base with UAT dashboard fallback for production", async () => {

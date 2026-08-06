@@ -7,8 +7,8 @@ export function registerPrice(program) {
     price
         .command("get <price-id>")
         .description("Get price details")
-        .action(async (priceId, command) => {
-        const { config, client } = await getCommandContext(command);
+        .action(async function (priceId) {
+        const { config, client } = await getCommandContext(this);
         const result = await client.get(`/price/${encodeURIComponent(priceId)}`);
         printResult(result, config.outputMode);
     });

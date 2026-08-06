@@ -8,8 +8,8 @@ export function registerOrder(program) {
     order
         .command("get <order-id>")
         .description("Get order details")
-        .action(async (orderId, command) => {
-        const { config, client } = await getCommandContext(command);
+        .action(async function (orderId) {
+        const { config, client } = await getCommandContext(this);
         const result = await client.get(`/order/${encodeURIComponent(orderId)}`);
         printResult(result, config.outputMode);
     });
