@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, readFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -96,6 +96,9 @@ describe("auth secret set", () => {
         apiKeySource: "literal",
         ready: true,
       });
+      if (process.platform !== "win32") {
+        expect(statSync(tempConfig).mode & 0o777).toBe(0o600);
+      }
 
       const statusResult = runClink(["--json", "auth", "status"], tempConfig);
       expect(statusResult.status).toBe(0);
@@ -109,6 +112,37 @@ describe("auth secret set", () => {
     } finally {
       rmSync(dirname(tempConfig), { recursive: true, force: true });
     }
+  });
+
+  describe.skipIf(process.platform === "win32")("POSIX config permissions", () => {
+    it.each([0o600, 0o640])("preserves an existing config mode of %o", (mode) => {
+      const tempConfig = join(tmpdir(), `clink-auth-mode-test-${process.pid}-${Date.now()}-${mode}`, "config.json");
+      mkdirSync(dirname(tempConfig), { recursive: true });
+      writeFileSync(tempConfig, `${JSON.stringify({ defaultProfile: "default", profiles: {} }, null, 2)}\n`, {
+        encoding: "utf8",
+        mode,
+      });
+      chmodSync(tempConfig, mode);
+
+      try {
+        const result = runClink([
+          "--json",
+          "auth",
+          "secret",
+          "set",
+          "--api-key",
+          "sk_test_mode_secret_1234567890",
+          "--env",
+          "sandbox",
+        ], tempConfig);
+
+        expect(result.status).toBe(0);
+        expect(statSync(tempConfig).mode & 0o777).toBe(mode);
+        expect(readFileSync(tempConfig, "utf8")).toContain("sk_test_mode_secret_1234567890");
+      } finally {
+        rmSync(dirname(tempConfig), { recursive: true, force: true });
+      }
+    });
   });
 
   it("stores env references without copying the resolved Secret Key into config", () => {

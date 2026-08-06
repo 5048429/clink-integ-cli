@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -482,6 +482,7 @@ describe("webhook endpoint runtime presets and safe ensure", () => {
     const signingSecret = "whsec_env_success_secret_1234567890";
     mkdirSync(tempDir, { recursive: true });
     writeFileSync(envFile, "CLINK_SECRET_KEY=placeholder\nCLINK_WEBHOOK_SIGNING_KEY=old-value\n", "utf8");
+    if (process.platform !== "win32") chmodSync(envFile, 0o600);
     const api = await startMockApi({ signingSecret });
     try {
       const result = await runClink(api.baseUrl, [
@@ -495,6 +496,9 @@ describe("webhook endpoint runtime presets and safe ensure", () => {
       expect(raw.match(/^CLINK_WEBHOOK_SIGNING_KEY=/gm)).toHaveLength(1);
       expect(raw).toContain(`CLINK_WEBHOOK_SIGNING_KEY=${signingSecret}`);
       expect(raw).toContain("CLINK_SECRET_KEY=placeholder");
+      if (process.platform !== "win32") {
+        expect(statSync(envFile).mode & 0o777).toBe(0o600);
+      }
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -579,6 +583,9 @@ describe("webhook endpoint runtime presets and safe ensure", () => {
       expect(result.stderr).not.toContain(signingSecret);
       const output = JSON.parse(result.stdout) as { envSync: { restart: { stdout: string } } };
       expect(output.envSync.restart.stdout).toContain("[masked-webhook-secret]");
+      if (process.platform !== "win32") {
+        expect(statSync(envFile).mode & 0o777).toBe(0o600);
+      }
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

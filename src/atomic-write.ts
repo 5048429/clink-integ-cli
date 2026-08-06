@@ -1,15 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { access, mkdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+
+const PRIVATE_FILE_MODE = 0o600;
 
 export async function writeTextFileAtomically(filePath: string, content: string): Promise<void> {
   const directory = dirname(filePath);
   await mkdir(directory, { recursive: true });
   const temporaryPath = temporaryFilePath(filePath, "tmp");
+  const mode = await resolveAtomicWriteMode(filePath);
 
   try {
-    await writeFile(temporaryPath, content, "utf8");
+    await writeFile(temporaryPath, content, { encoding: "utf8", flag: "wx", mode });
+    await chmod(temporaryPath, mode);
     await rename(temporaryPath, filePath);
   } finally {
     await rm(temporaryPath, { force: true }).catch(() => undefined);
@@ -31,9 +35,19 @@ export async function assertAtomicTextFileTarget(filePath: string): Promise<void
   await mkdir(directory, { recursive: true });
   const probePath = temporaryFilePath(filePath, "probe");
   try {
-    await writeFile(probePath, "", "utf8");
+    await writeFile(probePath, "", { encoding: "utf8", flag: "wx", mode: PRIVATE_FILE_MODE });
   } finally {
     await rm(probePath, { force: true }).catch(() => undefined);
+  }
+}
+
+async function resolveAtomicWriteMode(filePath: string): Promise<number> {
+  try {
+    const target = await stat(filePath);
+    return target.mode & 0o777;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return PRIVATE_FILE_MODE;
+    throw error;
   }
 }
 
