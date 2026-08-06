@@ -90,19 +90,16 @@ const fixtureBuilders = {
         status: "success",
         paymentTime: ORDER_PAYMENT_TIME,
         paymentExecutionDetails: null,
-        riskLevel: "low",
+        riskLevel: "LOW",
     }),
     "order.failed": () => orderFixture({
         status: "failed",
         paymentTime: ORDER_PAYMENT_TIME,
-        paymentExecutionDetails: [
-            {
-                channelCode: "CARD",
-                originalFailureCode: "card_declined",
-                originalFailureMessage: "The payment method was declined in the local fixture.",
-            },
-        ],
-        riskLevel: "high",
+        invoiceId: null,
+        paymentExecutionDetails: null,
+        failureCode: "processor_communication_error",
+        failureMessage: "The payment processor is temporarily unavailable in this local fixture.",
+        riskLevel: "LOW",
     }),
     "refund.created": () => refundFixture({ status: "created" }),
     "refund.succeeded": () => refundFixture({ status: "success" }),
@@ -123,7 +120,11 @@ const fixtureBuilders = {
         recurringInvoiceItem: null,
         upcomingInvoiceItem: recurringInvoiceItem(),
     }),
-    "subscription.past_due": () => subscriptionFixture({ status: "past_due", elapsedCycles: 1 }),
+    "subscription.past_due": () => subscriptionFixture({
+        status: "past_due",
+        upcomingInvoiceItem: recurringInvoiceItem(),
+        elapsedCycles: 1,
+    }),
     "subscription.cancelled": () => subscriptionFixture({
         status: "cancelled",
         cancelAt: CANCELLED_AT,
@@ -132,14 +133,14 @@ const fixtureBuilders = {
         cancelReason: "requested_by_customer",
         elapsedCycles: 1,
     }),
-    "subscription.updated.plan_changed": () => subscriptionFixture({ status: "active", priceId: "price_test_456", priceSnapshotId: "price_snapshot_test_456" }),
+    "subscription.updated.plan_changed": () => subscriptionFixture({ status: "active", priceId: "price_test_456", priceSnapshotId: "pricesns_test_456" }),
     "subscription.updated.plan_change_canceled": () => subscriptionFixture({ status: "active" }),
     "subscription.updated.renewed": () => subscriptionFixture({ status: "active", currentPeriodStart: NEXT_PERIOD_START, currentPeriodEnd: NEXT_PERIOD_END, elapsedCycles: 1 }),
     "subscription.updated.cancel_at_period_end_set": () => subscriptionFixture({ status: "active", cancelAtPeriodEnd: true, cancelAt: CURRENT_PERIOD_END }),
     "subscription.updated.cancel_at_period_end_revoked": () => subscriptionFixture({ status: "active", cancelAtPeriodEnd: false, cancelAt: null }),
     "invoice.open": () => invoiceFixture({ status: "open", paymentAmount: "19.99", orderId: null }),
     "invoice.paid": () => invoiceFixture({ status: "paid", paymentAmount: "19.99", orderId: "order_test_123" }),
-    "invoice.void": () => invoiceFixture({ status: "void", paymentAmount: "0.00", orderId: null }),
+    "invoice.void": () => invoiceFixture({ status: "void", paymentAmount: "0.00", orderId: "order_test_123" }),
     "dispute.created": () => disputeFixture(1),
     "dispute.updated": () => disputeFixture(2),
     "dispute.won": () => disputeFixture(3),
@@ -159,7 +160,7 @@ function fixtureEventId(type, prefix) {
 }
 function recurringInvoiceItem(options = {}) {
     return {
-        invoiceItemId: "invoice_item_test_123",
+        invoiceItemId: "ii_test_123",
         amount: "19.99",
         discountAmount: null,
         paymentAmount: "19.99",
@@ -174,15 +175,15 @@ function recurringInvoiceItem(options = {}) {
             productId: "prd_test_123",
             productName: "Local webhook test plan",
             priceId: options.priceId ?? "price_test_123",
-            priceSnapshotId: options.priceSnapshotId ?? "price_snapshot_test_123",
+            priceSnapshotId: options.priceSnapshotId ?? "pricesns_test_123",
             unitAmount: "19.99",
             quantity: 1,
             recurring: {
                 interval: "month",
-                intervalCount: 1,
+                intervalCount: null,
                 pricingModel: "flat_rate",
                 tiersMode: null,
-                trialPeriodDays: null,
+                trialPeriodDays: 0,
             },
         },
     };
@@ -236,7 +237,7 @@ function orderFixture(values) {
         status: values.status,
         merchantReferenceId: "merchant_order_test_123",
         sessionId: "sess_test_123",
-        invoiceId: "inv_test_123",
+        invoiceId: values.invoiceId === undefined ? "inv_test_123" : values.invoiceId,
         customerId: "cus_test_123",
         customerEmail: "test@example.com",
         productId: "prd_test_123",
@@ -256,6 +257,8 @@ function orderFixture(values) {
         amountTotal: 19.99,
         paymentCurrency: "USD",
         originalCurrency: "USD",
+        ...(values.failureCode === undefined ? {} : { failureCode: values.failureCode }),
+        ...(values.failureMessage === undefined ? {} : { failureMessage: values.failureMessage }),
         paymentTime: values.paymentTime,
         metadata: {},
         riskLevel: values.riskLevel,
@@ -263,7 +266,7 @@ function orderFixture(values) {
 }
 function subscriptionFixture(values) {
     const priceId = values.priceId ?? "price_test_123";
-    const priceSnapshotId = values.priceSnapshotId ?? "price_snapshot_test_123";
+    const priceSnapshotId = values.priceSnapshotId ?? "pricesns_test_123";
     return {
         merchantReference: "merchant_subscription_test_123",
         subscriptionId: "sub_test_123",
@@ -303,7 +306,7 @@ function invoiceFixture(values) {
         merchantReference: "merchant_subscription_test_123",
         orderId: values.orderId,
         customerId: "cus_test_123",
-        merchantId: "merchant_test_123",
+        merchantId: "mcht_test_123",
         status: values.status,
         createTime: INVOICE_CREATED_AT,
         currentPeriodStart: CURRENT_PERIOD_START,
@@ -329,24 +332,24 @@ function refundFixture(values) {
         status: values.status,
         refundReason: "Customer Initiated Refund",
         paymentInstrumentId: "pi_test_123",
-        metadata: baseMetadata(),
+        metadata: {},
         ...(values.failureCode === undefined ? {} : { failureCode: values.failureCode }),
         ...(values.failureMessage === undefined ? {} : { failureMessage: values.failureMessage }),
     };
 }
 function disputeFixture(status) {
     return {
-        chargeBackId: "dispute_test_123",
+        chargeBackId: "cbi_test_123",
         orderId: "order_test_123",
         merchantReferenceId: "merchant_order_test_123",
-        merchantId: "merchant_test_123",
+        merchantId: "mcht_test_123",
         customerId: "cus_test_123",
         disputeAmount: 19.99,
         disputeCurrency: "USD",
         originalAmount: 19.99,
         originalCurrency: "USD",
-        reasonCode: "fraudulent",
-        reasonDescription: "Cardholder reported the payment as unrecognized.",
+        reasonCode: "10.4",
+        reasonDescription: "fraudulent",
         status,
         evidenceDeadline: DISPUTE_EVIDENCE_DEADLINE,
         channelDisputeTime: DISPUTE_CHANNEL_TIME,

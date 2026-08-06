@@ -455,7 +455,9 @@ payment_method.default_change
 payment_method.update
 ```
 
-These 31 fixtures cover the stable `commerce` preset. They are deterministic local simulations for handler and routing tests; they are not evidence that Clink emitted the corresponding server event. This release-candidate work has not completed real sandbox parity for `order.failed`, `refund.succeeded`, `subscription.past_due`, `invoice.void`, or provider-generated `dispute.created`.
+These 31 fixtures cover the stable `commerce` preset. They are deterministic local simulations for handler and routing tests; they are not evidence that Clink emitted the corresponding server event.
+
+For `order.failed`, `refund.succeeded`, `subscription.past_due`, `invoice.void`, and `dispute.created`, the acceptance suite also uses fully redacted `data.object` resources extracted from real Sandbox logs. Their source declarations, capture metadata, and SHA-256 values are recorded in the test manifest. These resources are not complete raw event bodies: the test constructs a canonical envelope locally, signs it with a local test key, and replays it over localhost. This was explicitly approved as the v0.2.0 substitute acceptance path. The real Clink-to-Endpoint end-to-end leg was not executed and was explicitly waived, so this evidence must not be reported as a real end-to-end Sandbox UAT pass.
 
 ## Webhook Type Contracts
 

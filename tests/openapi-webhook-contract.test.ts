@@ -8,6 +8,8 @@ import type {
   InvoiceWebhookEvent,
   InvoiceWebhookObject,
   MerchantWebhookEvent,
+  OrderWebhookEvent,
+  OrderWebhookObject,
   PaymentMethodWebhookEvent,
   PaymentMethodWebhookObject,
   SubscriptionWebhookObject,
@@ -96,9 +98,23 @@ describe("OpenAPI and canonical merchant webhook type contracts", () => {
     expectTypeOf<MerchantWebhookEvent["created"]>().toEqualTypeOf<number>();
     expectTypeOf<MerchantWebhookEvent["object"]>().toEqualTypeOf<"event">();
     expectTypeOf<MerchantWebhookEvent["data"]["object"]>().toEqualTypeOf<Record<string, unknown>>();
+    expectTypeOf<OrderWebhookEvent["data"]["object"]>().toEqualTypeOf<OrderWebhookObject>();
     expectTypeOf<InvoiceWebhookEvent["data"]["object"]>().toEqualTypeOf<InvoiceWebhookObject>();
     expectTypeOf<SubscriptionWebhookEvent["data"]["object"]>()
       .toEqualTypeOf<SubscriptionWebhookObject>();
+  });
+
+  it("models production-serialized order failures and nullable fields", () => {
+    expectTypeOf<OrderWebhookObject["invoiceId"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<OrderWebhookObject["priceDataList"]>()
+      .toEqualTypeOf<Record<string, unknown>[] | null>();
+    expectTypeOf<OrderWebhookObject["paymentExecutionDetails"]>()
+      .toEqualTypeOf<Record<string, unknown>[] | null>();
+    expectTypeOf<OrderWebhookObject["paymentTime"]>().toEqualTypeOf<number | null>();
+    expectTypeOf<OrderWebhookObject["failureCode"]>().toEqualTypeOf<string | null | undefined>();
+    expectTypeOf<OrderWebhookObject["failureMessage"]>().toEqualTypeOf<string | null | undefined>();
+    expectTypeOf<NonNullable<OrderWebhookObject["paymentMethod"]>["wallet"]>()
+      .toEqualTypeOf<Record<string, unknown> | null>();
   });
 
   it("models production-serialized invoice amounts as strings", () => {

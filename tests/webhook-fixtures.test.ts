@@ -105,6 +105,7 @@ describe("merchant webhook fixtures", () => {
       status: "success",
       paymentTime: expect.any(Number),
       paymentExecutionDetails: null,
+      riskLevel: "LOW",
       paymentMethod: {
         paymentMethodType: "CARD",
         paymentInstrumentId: "pi_test_123",
@@ -123,6 +124,15 @@ describe("merchant webhook fixtures", () => {
     expect(nextAction).not.toHaveProperty("nextAction");
     expect(created).not.toHaveProperty("createTime");
     expect(succeeded).not.toHaveProperty("createTime");
+
+    expect(fixtureResource("order.failed")).toMatchObject({
+      status: "failed",
+      invoiceId: null,
+      paymentExecutionDetails: null,
+      failureCode: "processor_communication_error",
+      failureMessage: expect.stringContaining("local fixture"),
+      riskLevel: "LOW",
+    });
   });
 
   it("keeps smoke-test reconciliation overrides inside canonical data.object", () => {
@@ -176,10 +186,10 @@ describe("merchant webhook fixtures", () => {
           unitAmount: "19.99",
           recurring: {
             interval: "month",
-            intervalCount: 1,
+            intervalCount: null,
             pricingModel: "flat_rate",
             tiersMode: null,
-            trialPeriodDays: null,
+            trialPeriodDays: 0,
           },
         },
       });
@@ -197,6 +207,10 @@ describe("merchant webhook fixtures", () => {
       scheduledPhases: null,
       elapsedCycles: null,
       metadata: null,
+    });
+    expect(fixtureResource("subscription.past_due")).toMatchObject({
+      recurringInvoiceItem: expect.any(Object),
+      upcomingInvoiceItem: expect.any(Object),
     });
   });
 
@@ -223,10 +237,10 @@ describe("merchant webhook fixtures", () => {
             unitAmount: "19.99",
             recurring: {
               interval: "month",
-              intervalCount: 1,
+              intervalCount: null,
               pricingModel: "flat_rate",
               tiersMode: null,
-              trialPeriodDays: null,
+              trialPeriodDays: 0,
             },
           }),
         }),
@@ -235,6 +249,7 @@ describe("merchant webhook fixtures", () => {
 
     expect(fixtureResource("invoice.open")).toHaveProperty("orderId", null);
     expect(fixtureResource("invoice.paid")).toHaveProperty("orderId", "order_test_123");
+    expect(fixtureResource("invoice.void")).toHaveProperty("orderId", "order_test_123");
   });
 
   it("uses canonical refund sample fields and explicit lifecycle states", () => {
@@ -277,11 +292,14 @@ describe("merchant webhook fixtures", () => {
     for (const [type, status] of Object.entries(statuses)) {
       const resource = fixtureResource(type);
       expect(resource).toMatchObject({
-        chargeBackId: "dispute_test_123",
+        chargeBackId: "cbi_test_123",
         orderId: "order_test_123",
         merchantReferenceId: "merchant_order_test_123",
         disputeAmount: 19.99,
         disputeCurrency: "USD",
+        merchantId: "mcht_test_123",
+        reasonCode: "10.4",
+        reasonDescription: "fraudulent",
         evidenceDeadline: Date.parse("2025-01-30T12:00:00.000Z"),
         channelDisputeTime: Date.parse("2025-01-16T09:00:00.000Z"),
         status,

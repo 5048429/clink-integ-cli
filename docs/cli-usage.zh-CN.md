@@ -509,7 +509,9 @@ payment_method.default_change
 payment_method.update
 ```
 
-这些 fixture 是用于 handler、路由和签名测试的确定性本地模拟，不能证明 Clink 服务端真实产生过相应事件。本轮 release candidate 尚未完成 `order.failed`、`refund.succeeded`、`subscription.past_due`、`invoice.void` 和服务端产生的 `dispute.created` 这五类真实 sandbox 载荷对齐验证。
+这些 fixture 是用于 handler、路由和签名测试的确定性本地模拟，不能证明 Clink 服务端真实产生过相应事件。
+
+对于 `order.failed`、`refund.succeeded`、`subscription.past_due`、`invoice.void` 和 `dispute.created`，验收测试还使用了从真实 Sandbox 日志提取并完全脱敏的 `data.object` 资源；来源声明、捕获元数据和 SHA-256 记录在测试 manifest 中。这些资源不是完整 raw event body：测试在本地合成 canonical envelope，使用本地测试密钥签名，并通过 localhost HTTP 回放。该方案已获明确批准，作为 v0.2.0 本轮的替代验收；真实 Clink→Endpoint 端到端投递未执行并已被明确豁免，因此不得将该证据表述为“真实端到端 Sandbox UAT PASS”。
 
 签名：
 

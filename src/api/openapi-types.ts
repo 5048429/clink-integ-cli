@@ -3,6 +3,7 @@ import type {
   DisputeWebhookObject,
   InvoiceWebhookObject,
   MerchantWebhookEvent,
+  OrderWebhookObject,
   PaymentMethodWebhookObject,
   SubscriptionWebhookObject,
 } from "../webhook/contracts.js";
@@ -14,6 +15,8 @@ export type {
   InvoiceItemWebhookObject,
   InvoiceWebhookObject,
   MerchantWebhookEvent,
+  OrderPaymentMethodWebhookObject,
+  OrderWebhookObject,
   PaymentMethodBillingAddressWebhookObject,
   PaymentMethodCardWebhookObject,
   PaymentMethodType,
@@ -64,7 +67,7 @@ type GeneratedEventType<TSchema extends keyof components["schemas"]> = NonNullab
 
 export type OrderWebhookEvent = MerchantWebhookEvent<
   GeneratedEventType<"EventOrderVo">,
-  components["schemas"]["OrderApiVo"]
+  OrderWebhookObject
 >;
 export type SessionWebhookEvent = MerchantWebhookEvent<
   GeneratedEventType<"EventSessionVo">,

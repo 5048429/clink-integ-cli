@@ -15,6 +15,40 @@ export interface MerchantWebhookEvent<TType extends string = string, TObject ext
         object: TObject;
     };
 }
+export type OrderPaymentMethodWebhookObject = {
+    paymentMethodType: string | null;
+    paymentInstrumentId: string | null;
+    cardScheme: string | null;
+    cardLastFour: string | null;
+    issuerRegion: string | null;
+    issuerBank: string | null;
+    wallet: Record<string, unknown> | null;
+};
+/** Production-serialized Order resource delivered inside data.object. */
+export type OrderWebhookObject = {
+    orderId: string;
+    type: string | null;
+    sessionId: string | null;
+    merchantReferenceId: string | null;
+    invoiceId: string | null;
+    customerId: string | null;
+    customerEmail: string | null;
+    productId: string | null;
+    priceId: string | null;
+    priceDataList: Record<string, unknown>[] | null;
+    paymentMethod: OrderPaymentMethodWebhookObject | null;
+    paymentExecutionDetails: Record<string, unknown>[] | null;
+    amountSubtotal: number | null;
+    amountTotal: number | null;
+    paymentCurrency: string | null;
+    originalCurrency: string | null;
+    status: string;
+    failureCode?: string | null;
+    failureMessage?: string | null;
+    paymentTime: number | null;
+    metadata: Record<string, unknown> | null;
+    riskLevel: string | null;
+};
 export type InvoiceItemRecurringWebhookObject = {
     interval: string;
     trialPeriodDays: number | null;
