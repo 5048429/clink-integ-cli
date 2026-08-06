@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { writeTextFileAtomically } from "./atomic-write.js";
+import { writePrivateTextFileAtomically } from "./atomic-write.js";
 import { BASE_URLS, DEFAULT_PROFILE } from "./constants.js";
 import { getEnvironmentDefinition, resolveDashboardEndpoints } from "./environments.js";
 function emptyConfig() {
@@ -58,7 +58,7 @@ function legacyConfigPath() {
 }
 export async function writeStoredConfig(config) {
     const configPath = getConfigPath();
-    await writeTextFileAtomically(configPath, `${JSON.stringify(config, null, 2)}\n`);
+    await writePrivateTextFileAtomically(configPath, `${JSON.stringify(config, null, 2)}\n`);
 }
 export function resolveSecretRef(value, envFallbacks) {
     if (value) {

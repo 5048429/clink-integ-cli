@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { maskSecret } from "../output.js";
+import { assertValidatedClinkApiUrlMatchesBase, isValidatedClinkApiUrl, resolveClinkApiUrl, } from "./url.js";
 export class ClinkApiClient {
     config;
     constructor(config) {
@@ -28,12 +29,15 @@ export class ClinkApiClient {
         if (!this.config.apiKey && (!this.config.dryRun || options.executeInDryRun)) {
             throw new Error("Missing Clink Secret Key. Set CLINK_SECRET_KEY or run clink auth secret set --api-key env:CLINK_SECRET_KEY");
         }
-        const url = new URL(path.replace(/^\//, ""), this.config.baseUrl);
-        for (const [key, value] of Object.entries(options.query ?? {})) {
-            if (value !== undefined) {
-                url.searchParams.set(key, String(value));
-            }
+        if (isValidatedClinkApiUrl(path) && options.query !== undefined) {
+            throw new Error("Query parameters are already included in the validated Clink API URL.");
         }
+        if (isValidatedClinkApiUrl(path)) {
+            assertValidatedClinkApiUrlMatchesBase(path, this.config.baseUrl);
+        }
+        const url = isValidatedClinkApiUrl(path)
+            ? path
+            : resolveClinkApiUrl(this.config.baseUrl, path, options.query);
         const headers = new Headers({
             "X-API-KEY": this.config.apiKey ?? "dry_run_missing_key",
             "X-Timestamp": String(Date.now()),
@@ -51,7 +55,7 @@ export class ClinkApiClient {
                 dryRun: true,
                 request: {
                     method,
-                    url: url.toString(),
+                    url: url.href,
                     headers: {
                         "X-API-KEY": "[masked]",
                         "X-Timestamp": "[generated]",
@@ -63,7 +67,7 @@ export class ClinkApiClient {
         }
         let response;
         try {
-            response = await fetch(url, {
+            response = await fetch(url.href, {
                 method,
                 headers,
                 body,

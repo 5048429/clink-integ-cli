@@ -482,7 +482,7 @@ describe("webhook endpoint runtime presets and safe ensure", () => {
     const signingSecret = "whsec_env_success_secret_1234567890";
     mkdirSync(tempDir, { recursive: true });
     writeFileSync(envFile, "CLINK_SECRET_KEY=placeholder\nCLINK_WEBHOOK_SIGNING_KEY=old-value\n", "utf8");
-    if (process.platform !== "win32") chmodSync(envFile, 0o600);
+    if (process.platform !== "win32") chmodSync(envFile, 0o644);
     const api = await startMockApi({ signingSecret });
     try {
       const result = await runClink(api.baseUrl, [
@@ -499,6 +499,42 @@ describe("webhook endpoint runtime presets and safe ensure", () => {
       if (process.platform !== "win32") {
         expect(statSync(envFile).mode & 0o777).toBe(0o600);
       }
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("restores an env snapshot with mode 0600 when profile persistence fails", async () => {
+    const tempDir = join(tmpdir(), `clink-webhook-env-rollback-${process.pid}-${Date.now()}`);
+    const configPath = join(tempDir, "config.json");
+    const envFile = join(tempDir, ".env.local");
+    const oldSecret = "whsec_env_rollback_old_1234567890";
+    const newSecret = "whsec_env_rollback_new_1234567890";
+    mkdirSync(tempDir, { recursive: true });
+    writeFileSync(configPath, `${JSON.stringify({ defaultProfile: "default", profiles: {} }, null, 2)}\n`, "utf8");
+    writeFileSync(envFile, `CLINK_WEBHOOK_SIGNING_KEY=${oldSecret}\n`, "utf8");
+    chmodSync(configPath, 0o644);
+    chmodSync(envFile, 0o644);
+    const api = await startMockApi({
+      signingSecret: newSecret,
+      onEnsure: () => {
+        rmSync(configPath, { force: true });
+        mkdirSync(configPath);
+      },
+    });
+
+    try {
+      const result = await runClink(api.baseUrl, [
+        "webhook", "endpoint", "ensure", "--url", endpointUrl, "--events", "order.succeeded",
+        "--save-secret", "--sync-env-file", envFile,
+      ], { configPath });
+
+      expect(result.status).not.toBe(0);
+      expect(api.ensurePutCount()).toBe(1);
+      expect(result.stdout).not.toContain(newSecret);
+      expect(result.stderr).not.toContain(newSecret);
+      expect(readFileSync(envFile, "utf8")).toBe(`CLINK_WEBHOOK_SIGNING_KEY=${oldSecret}\n`);
+      expect(statSync(envFile).mode & 0o777).toBe(0o600);
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

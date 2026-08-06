@@ -53,6 +53,19 @@ describe("generated webhook handlers", () => {
       const readme = starterFile(framework, "README.md");
       expect(readme).toMatch(/Unrecognized payloads and event types throw and return non-2xx/);
       expect(readme).toMatch(/durable webhook Inbox/);
+      expect(readme).toMatch(/300-second webhook timestamp window/);
+      expect(readme).toMatch(/Persist every `event.id`/);
     }
+  });
+
+  it("does not expose verification secrets or payload-derived errors", () => {
+    const nextRoute = starterFile("nextjs", "app/api/clink/webhook/route.ts");
+    const expressServer = starterFile("express", "src/server.js");
+    const fastapiMain = starterFile("fastapi", "app/main.py");
+    for (const content of [nextRoute, expressServer, fastapiMain]) {
+      expect(content).toContain("Webhook processing failed");
+      expect(content).not.toContain("expectedSignature");
+    }
+    expect(nextRoute).not.toContain("errorMessage(error)");
   });
 });

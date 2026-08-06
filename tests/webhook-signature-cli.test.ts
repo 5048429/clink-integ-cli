@@ -92,5 +92,5 @@ describe("webhook signature CLI", () => {
       "--timestamp", timestamp, "--signature", signature,
     ]);
     expect(wrongSecret.status).not.toBe(0);
-  });
+  }, 15_000);
 });

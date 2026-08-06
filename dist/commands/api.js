@@ -1,6 +1,7 @@
+import { resolveClinkApiUrl } from "../api/url.js";
 import { curlForJsonRequest } from "../curl.js";
 import { printResult } from "../output.js";
-import { buildUrl, collect, getCommandContext, parseQuery, readJsonInput } from "./helpers.js";
+import { collect, getCommandContext, parseQuery, readJsonInput } from "./helpers.js";
 export function registerApi(program) {
     const api = program
         .command("api")
@@ -19,15 +20,16 @@ export function registerApi(program) {
         if ((method === "GET" || method === "DELETE") && body !== undefined) {
             throw new Error(`${method} requests cannot include --data or --data-file`);
         }
-        const result = await client.request(method, normalizePath(path), { query, body });
+        const requestUrl = resolveClinkApiUrl(config.baseUrl, path, query);
+        const result = await client.request(method, requestUrl, { body });
         printResult({
             method,
-            path: normalizePath(path),
+            path: requestUrl.pathname,
             result,
             curl: method === "GET" || method === "DELETE"
                 ? undefined
-                : curlForJsonRequest(method, buildUrl(config.baseUrl, path, query), body),
-        }, config.outputMode, `Clink API ${method} ${normalizePath(path)} completed. Use --json to view the full response.`);
+                : curlForJsonRequest(method, requestUrl.href, body),
+        }, config.outputMode, `Clink API ${method} ${requestUrl.pathname} completed. Use --json to view the full response.`);
     });
 }
 function parseMethod(value) {
@@ -36,8 +38,5 @@ function parseMethod(value) {
         return method;
     }
     throw new Error(`Unsupported API method "${value}". Use GET, POST, PUT, PATCH, or DELETE.`);
-}
-function normalizePath(path) {
-    return path.startsWith("/") ? path : `/${path}`;
 }
 //# sourceMappingURL=api.js.map

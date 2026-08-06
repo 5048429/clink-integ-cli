@@ -2,6 +2,12 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { maskSecret } from "../output.js";
 import type { RuntimeConfig } from "../types.js";
+import {
+  assertValidatedClinkApiUrlMatchesBase,
+  isValidatedClinkApiUrl,
+  resolveClinkApiUrl,
+  type ValidatedClinkApiUrl,
+} from "./url.js";
 
 type QueryValue = string | number | boolean | undefined;
 
@@ -17,35 +23,35 @@ export class ClinkApiClient {
   constructor(private readonly config: RuntimeConfig) {}
 
   async delete<T = unknown, TQuery extends object = Record<string, QueryValue>>(
-    path: string,
+    path: string | ValidatedClinkApiUrl,
     options: RequestOptions<never, TQuery> = {},
   ): Promise<T> {
     return this.request<T, never, TQuery>("DELETE", path, options);
   }
 
   async get<T = unknown, TQuery extends object = Record<string, QueryValue>>(
-    path: string,
+    path: string | ValidatedClinkApiUrl,
     options: RequestOptions<never, TQuery> = {},
   ): Promise<T> {
     return this.request<T, never, TQuery>("GET", path, options);
   }
 
   async post<T = unknown, TBody = unknown, TQuery extends object = Record<string, QueryValue>>(
-    path: string,
+    path: string | ValidatedClinkApiUrl,
     options: RequestOptions<TBody, TQuery> = {},
   ): Promise<T> {
     return this.request<T, TBody, TQuery>("POST", path, options);
   }
 
   async patch<T = unknown, TBody = unknown, TQuery extends object = Record<string, QueryValue>>(
-    path: string,
+    path: string | ValidatedClinkApiUrl,
     options: RequestOptions<TBody, TQuery> = {},
   ): Promise<T> {
     return this.request<T, TBody, TQuery>("PATCH", path, options);
   }
 
   async put<T = unknown, TBody = unknown, TQuery extends object = Record<string, QueryValue>>(
-    path: string,
+    path: string | ValidatedClinkApiUrl,
     options: RequestOptions<TBody, TQuery> = {},
   ): Promise<T> {
     return this.request<T, TBody, TQuery>("PUT", path, options);
@@ -53,7 +59,7 @@ export class ClinkApiClient {
 
   async request<T = unknown, TBody = unknown, TQuery extends object = Record<string, QueryValue>>(
     method: string,
-    path: string,
+    path: string | ValidatedClinkApiUrl,
     options: RequestOptions<TBody, TQuery> = {},
   ): Promise<T> {
     if (options.executeInDryRun && method !== "GET") {
@@ -63,12 +69,15 @@ export class ClinkApiClient {
       throw new Error("Missing Clink Secret Key. Set CLINK_SECRET_KEY or run clink auth secret set --api-key env:CLINK_SECRET_KEY");
     }
 
-    const url = new URL(path.replace(/^\//, ""), this.config.baseUrl);
-    for (const [key, value] of Object.entries(options.query ?? {}) as [string, QueryValue][]) {
-      if (value !== undefined) {
-        url.searchParams.set(key, String(value));
-      }
+    if (isValidatedClinkApiUrl(path) && options.query !== undefined) {
+      throw new Error("Query parameters are already included in the validated Clink API URL.");
     }
+    if (isValidatedClinkApiUrl(path)) {
+      assertValidatedClinkApiUrlMatchesBase(path, this.config.baseUrl);
+    }
+    const url = isValidatedClinkApiUrl(path)
+      ? path
+      : resolveClinkApiUrl(this.config.baseUrl, path, options.query);
 
     const headers = new Headers({
       "X-API-KEY": this.config.apiKey ?? "dry_run_missing_key",
@@ -88,7 +97,7 @@ export class ClinkApiClient {
         dryRun: true,
         request: {
           method,
-          url: url.toString(),
+          url: url.href,
           headers: {
             "X-API-KEY": "[masked]",
             "X-Timestamp": "[generated]",
@@ -101,7 +110,7 @@ export class ClinkApiClient {
 
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(url.href, {
         method,
         headers,
         body,

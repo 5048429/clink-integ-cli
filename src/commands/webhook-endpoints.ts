@@ -4,7 +4,7 @@ import { createInterface } from "node:readline/promises";
 import { promisify } from "node:util";
 import type { Command } from "commander";
 import type { ClinkApiClient } from "../api/client.js";
-import { assertAtomicTextFileTarget, writeTextFileAtomically } from "../atomic-write.js";
+import { assertAtomicTextFileTarget, writePrivateTextFileAtomically } from "../atomic-write.js";
 import { getConfigPath, saveProfile } from "../config.js";
 import { maskSecret, parseIntegerOption, printResult, requireOption } from "../output.js";
 import {
@@ -973,13 +973,13 @@ async function writeEnvFileValue(filePath: string, key: string, value: string): 
     existed = false;
   }
 
-  await writeTextFileAtomically(filePath, upsertEnvValue(raw, key, value));
+  await writePrivateTextFileAtomically(filePath, upsertEnvValue(raw, key, value));
   return { filePath, existed, raw };
 }
 
 async function restoreEnvFileSnapshot(snapshot: EnvFileSnapshot): Promise<void> {
   if (snapshot.existed) {
-    await writeTextFileAtomically(snapshot.filePath, snapshot.raw);
+    await writePrivateTextFileAtomically(snapshot.filePath, snapshot.raw);
   } else {
     await rm(snapshot.filePath, { force: true });
   }

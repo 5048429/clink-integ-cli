@@ -2,7 +2,7 @@ import { exec } from "node:child_process";
 import { readFile, rm } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
 import { promisify } from "node:util";
-import { assertAtomicTextFileTarget, writeTextFileAtomically } from "../atomic-write.js";
+import { assertAtomicTextFileTarget, writePrivateTextFileAtomically } from "../atomic-write.js";
 import { getConfigPath, saveProfile } from "../config.js";
 import { maskSecret, parseIntegerOption, printResult, requireOption } from "../output.js";
 import { WEBHOOK_CHECKOUT_EVENTS, WEBHOOK_COMMERCE_EVENTS, WEBHOOK_CORE_EVENTS, WEBHOOK_DISPUTE_EVENTS, WEBHOOK_PAYMENT_METHOD_EVENTS, WEBHOOK_PRESET_NAMES, WEBHOOK_SUBSCRIPTION_EVENTS, parseWebhookRuntimeCatalog, resolveWebhookEventSelection, } from "../webhook/event-catalog.js";
@@ -736,12 +736,12 @@ async function writeEnvFileValue(filePath, key, value) {
             throw error;
         existed = false;
     }
-    await writeTextFileAtomically(filePath, upsertEnvValue(raw, key, value));
+    await writePrivateTextFileAtomically(filePath, upsertEnvValue(raw, key, value));
     return { filePath, existed, raw };
 }
 async function restoreEnvFileSnapshot(snapshot) {
     if (snapshot.existed) {
-        await writeTextFileAtomically(snapshot.filePath, snapshot.raw);
+        await writePrivateTextFileAtomically(snapshot.filePath, snapshot.raw);
     }
     else {
         await rm(snapshot.filePath, { force: true });

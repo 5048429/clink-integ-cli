@@ -24,13 +24,17 @@ Use this skill when the user asks to:
 - Resolve webhook endpoint events from the selected environment's `GET /webhook/events` response; do not treat a build-time event enum as authoritative.
 - Treat `webhook endpoint ensure` event updates as safe merges by default. Preserve existing events, require `--allow-remove-events` for explicit replacement, show added/removed/unchanged before dangerous writes, and verify the post-write event set.
 - Keep webhook signature verification on the untouched raw body before parsing or normalizing fixture formats.
+- Reject malformed or stale webhook signature timestamps before parsing. Generated handlers use the shared 300-second tolerance and still require durable `event.id` deduplication inside that window.
 - Keep `merchant-webhook` as the default fixture profile and the flattened `legacy` profile explicit and deprecated. Merchant Webhooks and Agent Customer Callbacks are separate contracts.
 - Keep `core` fixed at its compatibility set of 6 events; recommend the stable 31-event `commerce` preset for complete charging integrations and resolve every selection against the runtime catalog.
 - Treat fixtures and signed simulations as local test inputs, never as evidence of a real Clink server event or completed sandbox acceptance.
 - Regenerate `src/openapi/clink.openapi.ts` with `npm run openapi:refresh`; never edit it manually. Keep canonical Merchant Webhook serialization contracts in `src/webhook/contracts.ts` when the public OpenAPI resource schema is incomplete.
 - Do not hardcode real Secret Keys or webhook signing keys.
+- Resolve authenticated API request paths through the shared safe URL resolver. A command path must not replace the configured origin or escape its API base pathname.
 - Prefer `env:CLINK_SECRET_KEY` and `env:CLINK_WEBHOOK_SIGNING_KEY` references for stored profiles.
+- Write CLI profiles and env files containing secrets atomically as private files; POSIX targets must end at mode `0600` even when an existing file was more permissive.
 - Never print unmasked secrets in normal output.
+- Generated public checkout and subscription routes must select server-authoritative price or plan allowlists. Do not trust browser-supplied amounts, product/price IDs, merchant references, redirect URLs, or payment settings; this rule does not restrict trusted local CLI commands.
 - Keep `Commander` as the core command router unless the user explicitly requests a different shell framework.
 - Do not add Ink to core commands. If interactive UI is needed, add a separate `wizard` command later.
 - Do not use OpenCLI as a core dependency. Treat browser/Dashboard automation as an optional experiment.

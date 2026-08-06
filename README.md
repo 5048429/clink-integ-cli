@@ -185,6 +185,8 @@ Created and updated endpoints are enabled by default; pass `--disabled` only whe
 
 `--save-secret` stores the returned signing secret in the current local profile for `clink webhook simulate/sign/verify`. `--sync-env-file <path>` atomically writes or updates `CLINK_WEBHOOK_SIGNING_KEY` in a local env file after the plaintext signing secret is resolved; local destinations are checked before PUT, and profile/env updates are rolled back when a later write races or fails. Add `--restart-command "<command>"` together with `--sync-env-file` when you want the CLI to restart a local server after writing the file; the restart completes before endpoint read-back, and captured restart output is redacted before it reaches JSON or terminal output. For existing endpoints, Clink cannot return the old plaintext secret; when `--save-secret`, `--show-secret`, or `--sync-env-file` is used, `ensure` requests the plaintext secret and automatically asks the API to rotate it if the old secret is unavailable. `--show-secret` prints the raw value only when you explicitly ask for it. API requests abort after 30 seconds by default; use `--timeout-ms` or `CLINK_API_TIMEOUT_MS` for a different positive limit.
 
+CLI profile files and env files written with `--sync-env-file` contain secrets. Atomic writes create private temporary files and force the final target to mode `0600` on POSIX, including when an existing target was more permissive and when a failed multi-file update is rolled back.
+
 Webhook endpoint URLs must start with `https://` and cannot use localhost, loopback, private, link-local, or multicast hosts. Public API request bodies use event names, not Dashboard numeric event codes. Every event selection is validated against the runtime `GET /webhook/events` response; missing preset events fail instead of being silently removed.
 
 Available presets can be combined and are de-duplicated:
@@ -246,6 +248,8 @@ clink webhook simulate order.succeeded --secret env:CLINK_WEBHOOK_SIGNING_KEY --
 clink doctor
 clink smoke-test
 ```
+
+`api request` accepts only an API path relative to the selected environment's configured base URL. Absolute URLs, scheme-relative paths, path traversal, fragments, and encoded separator bypasses are rejected before authentication headers are created. Use `clink env add`, `--env`, or the explicit one-off `--base-url` override to select a different trusted API base; a request path cannot replace that origin or escape its base pathname.
 
 `smoke-test` can create a checkout session and send a signed simulated webhook, but webhook HTTP 200 is not the real-payment finish line. After opening a real sandbox `checkoutUrl`, verify the local merchant order matched by both `merchantReferenceId` and `sessionId` is paid/completed, then verify entitlement, credits, shipment, download access, or other fulfillment is complete.
 
@@ -380,7 +384,9 @@ clink init --framework express --out ./tmp-express --force --json
 clink init --framework fastapi --out ./tmp-fastapi --force --json
 ```
 
-Each starter includes checkout, subscription, and raw-body webhook examples, plus `.env.example`, curl examples, and integration docs. Generated handlers verify the untouched raw body before parsing, normalize canonical and legacy envelopes, emit a safe warning metric for legacy payloads, and return non-2xx for unknown payloads or events. Secrets are read from environment variables such as `CLINK_SECRET_KEY` and `CLINK_WEBHOOK_SIGNING_KEY`.
+Each starter includes checkout, subscription, and raw-body webhook examples, plus `.env.example`, curl examples, and integration docs. Public checkout routes accept a server-defined `priceKey`; trusted product/price IDs, redirects, payment settings, and merchant order references come from the server-side allowlist rather than browser-supplied amounts or IDs. The example is registered-Price-first, keeps inline pricing as an explicit server-side mode, and disables client-selected quantity unless the inline SKU explicitly enables a bounded 1-10 range. Subscription routes use a corresponding server-defined `planKey`. This does not restrict the trusted local `clink checkout create` or subscription commands.
+
+Generated webhook handlers verify timestamp freshness and the signature against the untouched raw body before parsing, normalize canonical and legacy envelopes, emit a safe warning metric for legacy payloads, and return non-2xx for unknown payloads or events. The default timestamp tolerance is 300 seconds and accepts integer Unix seconds or milliseconds. Freshness limits stale replay; handlers still need a durable Inbox keyed by `event.id` to deduplicate delivery attempts inside that window. Secrets are read from environment variables such as `CLINK_SECRET_KEY` and `CLINK_WEBHOOK_SIGNING_KEY`.
 
 ## Local Webhook Development
 
@@ -475,6 +481,7 @@ clink checkout create ... --json
 
 ## Project Docs
 
+- [v0.2.1 security candidate notes](docs/releases/v0.2.1.md)
 - [v0.2.0 release candidate notes](docs/releases/v0.2.0.md)
 - [CLI 使用文档](docs/cli-usage.zh-CN.md)
 - [AI 自动接入官网与 Developers 更新 PRD](docs/ai-integration-website-developers-prd.zh-CN.md)

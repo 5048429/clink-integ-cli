@@ -5,16 +5,16 @@ import { basename, dirname, join } from "node:path";
 
 const PRIVATE_FILE_MODE = 0o600;
 
-export async function writeTextFileAtomically(filePath: string, content: string): Promise<void> {
+export async function writePrivateTextFileAtomically(filePath: string, content: string): Promise<void> {
   const directory = dirname(filePath);
   await mkdir(directory, { recursive: true });
   const temporaryPath = temporaryFilePath(filePath, "tmp");
-  const mode = await resolveAtomicWriteMode(filePath);
 
   try {
-    await writeFile(temporaryPath, content, { encoding: "utf8", flag: "wx", mode });
-    await chmod(temporaryPath, mode);
+    await writeFile(temporaryPath, content, { encoding: "utf8", flag: "wx", mode: PRIVATE_FILE_MODE });
+    await setPrivateFileMode(temporaryPath);
     await rename(temporaryPath, filePath);
+    await verifyPrivateFileMode(filePath);
   } finally {
     await rm(temporaryPath, { force: true }).catch(() => undefined);
   }
@@ -41,13 +41,20 @@ export async function assertAtomicTextFileTarget(filePath: string): Promise<void
   }
 }
 
-async function resolveAtomicWriteMode(filePath: string): Promise<number> {
+async function setPrivateFileMode(filePath: string): Promise<void> {
   try {
-    const target = await stat(filePath);
-    return target.mode & 0o777;
+    await chmod(filePath, PRIVATE_FILE_MODE);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return PRIVATE_FILE_MODE;
+    if (process.platform === "win32") return;
     throw error;
+  }
+}
+
+async function verifyPrivateFileMode(filePath: string): Promise<void> {
+  if (process.platform === "win32") return;
+  const mode = (await stat(filePath)).mode & 0o777;
+  if (mode !== PRIVATE_FILE_MODE) {
+    throw new Error(`Private file permissions must be 0600: ${filePath}`);
   }
 }
 

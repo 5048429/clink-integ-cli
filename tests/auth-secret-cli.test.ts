@@ -115,7 +115,7 @@ describe("auth secret set", () => {
   });
 
   describe.skipIf(process.platform === "win32")("POSIX config permissions", () => {
-    it.each([0o600, 0o640])("preserves an existing config mode of %o", (mode) => {
+    it.each([0o600, 0o640, 0o644, 0o664, 0o777])("tightens an existing config mode of %o to 0600", (mode) => {
       const tempConfig = join(tmpdir(), `clink-auth-mode-test-${process.pid}-${Date.now()}-${mode}`, "config.json");
       mkdirSync(dirname(tempConfig), { recursive: true });
       writeFileSync(tempConfig, `${JSON.stringify({ defaultProfile: "default", profiles: {} }, null, 2)}\n`, {
@@ -137,7 +137,7 @@ describe("auth secret set", () => {
         ], tempConfig);
 
         expect(result.status).toBe(0);
-        expect(statSync(tempConfig).mode & 0o777).toBe(mode);
+        expect(statSync(tempConfig).mode & 0o777).toBe(0o600);
         expect(readFileSync(tempConfig, "utf8")).toContain("sk_test_mode_secret_1234567890");
       } finally {
         rmSync(dirname(tempConfig), { recursive: true, force: true });

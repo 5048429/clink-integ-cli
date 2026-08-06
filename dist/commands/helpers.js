@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { ClinkApiClient } from "../api/client.js";
+import { resolveClinkApiUrl } from "../api/url.js";
 import { resolveRuntimeConfig } from "../config.js";
 export async function getCommandContext(command) {
     const options = command.optsWithGlobals();
@@ -52,13 +53,7 @@ export function parseQuery(values) {
     return query;
 }
 export function buildUrl(baseUrl, path, query) {
-    const url = new URL(path.replace(/^\//, ""), baseUrl);
-    for (const [key, value] of Object.entries(query ?? {})) {
-        if (value !== undefined) {
-            url.searchParams.set(key, String(value));
-        }
-    }
-    return url.toString();
+    return resolveClinkApiUrl(baseUrl, path, query).href;
 }
 function parseJson(raw, source) {
     try {

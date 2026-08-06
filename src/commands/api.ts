@@ -1,7 +1,8 @@
 import type { Command } from "commander";
+import { resolveClinkApiUrl } from "../api/url.js";
 import { curlForJsonRequest } from "../curl.js";
 import { printResult } from "../output.js";
-import { buildUrl, collect, getCommandContext, parseQuery, readJsonInput } from "./helpers.js";
+import { collect, getCommandContext, parseQuery, readJsonInput } from "./helpers.js";
 
 type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -30,18 +31,19 @@ export function registerApi(program: Command): void {
         throw new Error(`${method} requests cannot include --data or --data-file`);
       }
 
-      const result = await client.request(method, normalizePath(path), { query, body });
+      const requestUrl = resolveClinkApiUrl(config.baseUrl, path, query);
+      const result = await client.request(method, requestUrl, { body });
       printResult(
         {
           method,
-          path: normalizePath(path),
+          path: requestUrl.pathname,
           result,
           curl: method === "GET" || method === "DELETE"
             ? undefined
-            : curlForJsonRequest(method, buildUrl(config.baseUrl, path, query), body),
+            : curlForJsonRequest(method, requestUrl.href, body),
         },
         config.outputMode,
-        `Clink API ${method} ${normalizePath(path)} completed. Use --json to view the full response.`,
+        `Clink API ${method} ${requestUrl.pathname} completed. Use --json to view the full response.`,
       );
     });
 }
@@ -52,8 +54,4 @@ function parseMethod(value: string): ApiMethod {
     return method;
   }
   throw new Error(`Unsupported API method "${value}". Use GET, POST, PUT, PATCH, or DELETE.`);
-}
-
-function normalizePath(path: string): string {
-  return path.startsWith("/") ? path : `/${path}`;
 }
